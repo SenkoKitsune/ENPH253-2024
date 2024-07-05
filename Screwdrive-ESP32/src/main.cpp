@@ -9,8 +9,8 @@ const char* ssid = "U235-Control";  // Replace with your desired SSID
 const char* password = "SkibidiToilet";  // Replace with your desired password
 
 bool doBurgers = false;
-bool ready = false;
-bool proceed = false;
+volatile bool ready = false;
+volatile bool proceed = false;
 
 AsyncServer server(80);  // Create a server object on port 80
 AsyncClient* client = NULL;
