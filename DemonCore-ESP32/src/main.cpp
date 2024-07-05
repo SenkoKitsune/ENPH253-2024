@@ -12,6 +12,10 @@ const uint16_t server_port = 80;  // Replace with your server's port
 bool doBurger = false;
 bool proceed = false;
 
+#define commBit0 23
+#define commBit1 22
+#define commBit2 1
+
 AsyncClient client;
 QueueHandle_t commandQueue;
 
@@ -222,23 +226,91 @@ void ExecuteTasks(void *pvParameters) {
 }
 
 // burger tasks from task 0 to task 15
-void burgerTask0() { Serial.println("Executing dummy task 0"); delay(1000);}
-void burgerTask1() { Serial.println("Executing dummy task 1"); delay(1000);}
-void burgerTask2() { Serial.println("Executing dummy task 2"); delay(1000);}
-void burgerTask3() { Serial.println("Executing dummy task 3"); delay(1000);}
-void burgerTask4() { Serial.println("Executing dummy task 4"); delay(1000);}
-void burgerTask5() { Serial.println("Executing dummy task 5"); delay(1000);}
-void burgerTask6() { Serial.println("Executing dummy task 6"); delay(1000);}
-void burgerTask7() { Serial.println("Executing dummy task 7"); delay(1000);}
-void burgerTask8() { Serial.println("Executing dummy task 8"); delay(1000);}
-void burgerTask9() { Serial.println("Executing dummy task 9"); delay(1000);}
-void burgerTask10() { Serial.println("Executing dummy task 10"); delay(1000);}
-void burgerTask11() { Serial.println("Executing dummy task 11"); delay(1000);}
-void burgerTask12() { Serial.println("Executing dummy task 12"); delay(1000);}
-void burgerTask13() { Serial.println("Executing dummy task 13"); delay(1000);}
-void burgerTask14() { Serial.println("Executing dummy task 14"); delay(1000);}
-void burgerTask15() { Serial.println("Executing dummy task 15"); delay(1000);}
-void burgerTask16() { Serial.println("Executing dummy task 16"); delay(1000);}
+void burgerTask0() { 
+  
+  Serial.println("Executing dummy task 0"); 
+  delay(1000);
+}
+
+void burgerTask1() { 
+  Serial.println("Executing dummy task 1"); 
+  delay(1000);
+}
+
+void burgerTask2() { 
+  Serial.println("Executing dummy task 2"); 
+  delay(1000);
+}
+
+void burgerTask3() { 
+  Serial.println("Executing dummy task 3"); 
+  delay(1000);
+}
+
+void burgerTask4() { 
+  Serial.println("Executing dummy task 4"); 
+  delay(1000);
+}
+
+void burgerTask5() { 
+  Serial.println("Executing dummy task 5"); 
+  delay(1000);
+}
+
+void burgerTask6() { 
+  Serial.println("Executing dummy task 6"); 
+  delay(1000);
+}
+
+void burgerTask7() { 
+  Serial.println("Executing dummy task 7"); 
+  delay(1000);
+}
+
+void burgerTask8() { 
+  Serial.println("Executing dummy task 8"); 
+  delay(1000);
+}
+
+void burgerTask9() { 
+  Serial.println("Executing dummy task 9"); 
+  delay(1000);
+}
+
+void burgerTask10() { 
+  Serial.println("Executing dummy task 10"); 
+  delay(1000);
+}
+
+void burgerTask11() { 
+  Serial.println("Executing dummy task 11"); 
+  delay(1000);
+}
+
+void burgerTask12() { 
+  Serial.println("Executing dummy task 12"); 
+  delay(1000);
+}
+
+void burgerTask13() { 
+  Serial.println("Executing dummy task 13"); 
+  delay(1000);
+}
+
+void burgerTask14() { 
+  Serial.println("Executing dummy task 14"); 
+  delay(1000);
+}
+
+void burgerTask15() { 
+  Serial.println("Executing dummy task 15"); 
+  delay(1000);
+}
+
+void burgerTask16() { 
+  Serial.println("Executing dummy task 16"); 
+  delay(1000);
+}
 
 //fries tasks from task 0 to task 6
 void friesTask0() { Serial.println("Executing fries task 0"); delay(1000);}
@@ -248,4 +320,35 @@ void friesTask3() { Serial.println("Executing fries task 3"); delay(1000);}
 void friesTask4() { Serial.println("Executing fries task 4"); delay(1000);}
 void friesTask5() { Serial.println("Executing fries task 5"); delay(2000);}
 void friesTask6() { Serial.println("Executing fries task 6"); delay(1000);}
-void friesTask7() { Serial.println("Executing fries task 7"); delay(1000);}
+
+
+void friesTask7() {
+   Serial.println("Executing fries task 7"); 
+   pinMode(commBit0, OUTPUT);
+   pinMode(commBit1, OUTPUT);
+   pinMode(commBit2, OUTPUT);
+   digitalWrite(commBit0, HIGH);
+   digitalWrite(commBit1, HIGH);
+   digitalWrite(commBit2, HIGH);
+   pinMode(commBit0, INPUT);
+   pinMode(commBit1, INPUT);
+   pinMode(commBit2, INPUT);
+   delay(1000);
+   }
+
+
+
+void setCommPinOutput(int taskNumber){
+  pinMode(commBit0, OUTPUT);
+  pinMode(commBit1, OUTPUT);
+  pinMode(commBit2, OUTPUT);
+  switch(taskNumber){
+    case 0: 
+    digitalWrite(commBit0, HIGH);
+    digitalWrite(commBit1, HIGH);
+    digitalWrite(commBit2, HIGH);
+  }
+
+  
+   
+}
