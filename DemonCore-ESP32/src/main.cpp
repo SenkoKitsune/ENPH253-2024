@@ -10,7 +10,7 @@ const char* password = "SkibidiToilet";  // Replace with your AP's password
 const char* server_ip = "192.168.15.221";  // Default IP for ESP32 AP
 const uint16_t server_port = 80;  // Replace with your server's port
 bool doBurger = false;
-bool proceed = false;
+volatile bool proceed = false;
 
 #define commBit0 23
 #define commBit1 22
