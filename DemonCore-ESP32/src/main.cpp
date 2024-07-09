@@ -15,6 +15,7 @@ volatile bool proceed = false;
 #define commBit0 23
 #define commBit1 22
 #define commBit2 1
+#define commBit3 3
 
 AsyncClient client;
 QueueHandle_t commandQueue;
@@ -47,6 +48,8 @@ void friesTask4();
 void friesTask5();
 void friesTask6(); 
 void friesTask7();
+
+void setCommPinOutput(int taskNumber);
 
 void setup() {
   Serial.begin(9600);
@@ -313,42 +316,222 @@ void burgerTask16() {
 }
 
 //fries tasks from task 0 to task 6
-void friesTask0() { Serial.println("Executing fries task 0"); delay(1000);}
-void friesTask1() { Serial.println("Executing fries task 1"); delay(1000);}
-void friesTask2() { Serial.println("Executing fries task 2"); delay(1000);}
-void friesTask3() { Serial.println("Executing fries task 3"); delay(1000);}
-void friesTask4() { Serial.println("Executing fries task 4"); delay(1000);}
-void friesTask5() { Serial.println("Executing fries task 5"); delay(2000);}
-void friesTask6() { Serial.println("Executing fries task 6"); delay(1000);}
+void friesTask0() { 
+  Serial.println("Executing fries task 0"); 
+  delay(1000);
+}
 
+void friesTask1() { 
+  Serial.println("Executing fries task 1"); 
+  delay(1000);
+}
+
+void friesTask2() { 
+  Serial.println("Executing fries task 2"); 
+  delay(1000);
+}
+
+void friesTask3() { 
+  Serial.println("Executing fries task 3"); 
+  delay(1000);
+}
+
+void friesTask4() { 
+  Serial.println("Executing fries task 4"); 
+  delay(1000);
+}
+
+void friesTask5() { 
+  Serial.println("Executing fries task 5"); 
+  delay(2000);
+}
+
+void friesTask6() { 
+  Serial.println("Executing fries task 6"); 
+  delay(1000);
+}
 
 void friesTask7() {
    Serial.println("Executing fries task 7"); 
-   pinMode(commBit0, OUTPUT);
-   pinMode(commBit1, OUTPUT);
-   pinMode(commBit2, OUTPUT);
-   digitalWrite(commBit0, HIGH);
-   digitalWrite(commBit1, HIGH);
-   digitalWrite(commBit2, HIGH);
-   pinMode(commBit0, INPUT);
-   pinMode(commBit1, INPUT);
-   pinMode(commBit2, INPUT);
+   setCommPinOutput(7);
+   delay(50);
+
    delay(1000);
    }
-
-
 
 void setCommPinOutput(int taskNumber){
   pinMode(commBit0, OUTPUT);
   pinMode(commBit1, OUTPUT);
   pinMode(commBit2, OUTPUT);
+  pinMode(commBit3, OUTPUT);
   switch(taskNumber){
     case 0: 
-    digitalWrite(commBit0, HIGH);
-    digitalWrite(commBit1, HIGH);
-    digitalWrite(commBit2, HIGH);
-  }
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, LOW);
+      break;
 
-  
-   
+    case 1:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, LOW);
+      break;
+
+    case 2:
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, LOW);
+      break;
+
+    case 3:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, LOW);
+      break;
+    
+    case 4:
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, LOW);
+      break;
+    
+    case 5:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, LOW);
+      break;
+
+    case 6:
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, LOW);
+      break;
+
+    case 7:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, LOW);
+      break;
+    
+    case 8:
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, HIGH);
+      break;
+    
+    case 9:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, HIGH);
+      break;
+
+    case 10:
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, HIGH);
+      break;
+
+    case 11:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, LOW);
+      digitalWrite(commBit3, HIGH);
+      break;
+
+    case 12:
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, HIGH);
+      break;
+
+    case 13:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, LOW);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, HIGH);
+      break;
+
+    case 14:
+      digitalWrite(commBit0, LOW);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, HIGH);
+      break;
+
+    case 15:
+      digitalWrite(commBit0, HIGH);
+      digitalWrite(commBit1, HIGH);
+      digitalWrite(commBit2, HIGH);
+      digitalWrite(commBit3, HIGH);
+      break;
+  }
+}
+
+int readCommPinInput(){
+  pinMode(commBit0, INPUT);
+  pinMode(commBit1, INPUT);
+  pinMode(commBit2, INPUT);
+  pinMode(commBit3, INPUT);
+
+  if (commBit0 == LOW && commBit1 == LOW && commBit2 == LOW && commBit3 == LOW) {
+    return 0;
+  }
+  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == LOW && commBit3 == LOW) {
+    return 1;
+  }
+  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == LOW && commBit3 == LOW) {
+    return 2;
+  }
+  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == LOW && commBit3 == LOW) {
+    return 3;
+  }
+  else if (commBit0 == LOW && commBit1 == LOW && commBit2 == HIGH && commBit3 == LOW) {
+    return 4;
+  }
+  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == HIGH && commBit3 == LOW) {
+    return 5;
+  }
+  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == HIGH && commBit3 == LOW) {
+    return 6;
+  }
+  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == HIGH && commBit3 == LOW) {
+    return 7;
+  }
+  else if (commBit0 == LOW && commBit1 == LOW && commBit2 == LOW && commBit3 == HIGH) {
+    return 8;
+  }
+  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == LOW && commBit3 == HIGH) {
+    return 9;
+  }
+  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == LOW && commBit3 == HIGH) {
+    return 10;
+  }
+  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == LOW && commBit3 == HIGH) {
+    return 11;
+  }
+  else if (commBit0 == LOW && commBit1 == LOW && commBit2 == HIGH && commBit3 == HIGH) {
+    return 12;
+  }
+  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == HIGH && commBit3 == HIGH) {
+    return 13;
+  }
+  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == HIGH && commBit3 == HIGH) {
+    return 14;
+  }
+  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == HIGH && commBit3 == HIGH) {
+    return 15;
+  }
+  return -1; //something went very very wrong here if it returns -1
 }
