@@ -15,7 +15,7 @@ bool proceed = false;
 #define commBit0 21
 #define commBit1 22
 #define commBit2 19
-#define commBit3 18
+#define commBit3 8
 
 AsyncClient client;
 QueueHandle_t commandQueue;
@@ -49,8 +49,8 @@ void friesTask5();
 void friesTask6(); 
 void friesTask7();
 
+void setCommPinOutput(int taskNumber);
 int readCommPinInput();
-void setCommPinOutput(int integerValue);
 
 void setup() {
   Serial.begin(9600);
@@ -64,13 +64,13 @@ void setup() {
   Serial.println("Connected to ESP32 AP");
 
   // Create FreeRTOS queue
-  commandQueue = xQueueCreate(10, sizeof(char) * 50);
+  commandQueue = xQueueCreate(20, sizeof(char[70]));
 
   // Create FreeRTOS tasks
   xTaskCreatePinnedToCore(
     TCP_Client,       // Task function
     "TCP Client",     // Name of the task (for debugging)
-    4096,             // Stack size (bytes)
+    8192,             // Stack size (bytes)
     NULL,             // Parameter to pass to the task
     1,                // Task priority
     NULL,             // Task handle
@@ -80,7 +80,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     ExecuteTasks,
     "Execute Tasks",
-    4096,
+    8192,
     NULL,
     1,                // Task priority
     NULL,
@@ -90,7 +90,6 @@ void setup() {
 
 void loop() {
   // Main loop can run other tasks if needed
-  vTaskDelete(NULL);
 }
 
 // Task for handling TCP client communication on core 0
@@ -124,33 +123,47 @@ void TCP_Client(void *pvParameters) {
   }
 }
 
-// Task to execute fries tasks 0-4 on core 1
+/*
+ * This method executes tasks on core 1 of the ESP-32. It has two components, a one-time-use doFries loop and a multi-use doBurger loop.
+ * It is also responsible for the initial sending of information when the robot has finished up to the hand-off step each loop.
+ */
 void ExecuteTasks(void *pvParameters) {
+
+/*
+ * The fries loop. It will do its own thing until the fries hand-off step, which will then require the two robots to communicate
+ * with each other. Afterwards, the doBurgers boolean will be set to true and the doFries loop will be ignored.
+ */
   if(!doBurger){
-    for(int i = 0; i < 4; i++){
+    for(int i = 0; i < 6; i++){
       switch(i) {
         case 0: friesTask0(); break;
         case 1: friesTask1(); break;
-        case 2: { 
-          friesTask2();
-          const char* instruction = "Reached Fries Task 2";
+        case 2: friesTask2(); break;
+        case 3: friesTask3(); break;
+        case 4: friesTask4(); break;
+        case 5: 
+        {
+          friesTask5();
+          // After doing task 5, we wait for Screwdriver robot to show up so we can hand off the fries
+          const char* instruction = "Reached Fries Task 5";
           client.write(instruction, strlen(instruction));
           Serial.printf("Sent instruction: %s\n", instruction);
 
-          // Wait for the command to execute task 3
+          // Wait for the command to execute task 6
           char command[50];
           while (true) {
             if (xQueueReceive(commandQueue, &command, portMAX_DELAY)) {
-              if (strcmp(command, "Execute Task 3") == 0) {
+              if (strcmp(command, "Execute Task 6") == 0) {
+                delay(50);
                 break;
               }
             }
             vTaskDelay(100 / portTICK_PERIOD_MS); // Adjust the delay as needed
           }
 
-          // Execute task 3
-          friesTask3();
-          instruction = "Finished Task 3";
+          // Execute task 6
+          friesTask6();
+          instruction = "Finished Task 6";
           client.write(instruction, strlen(instruction));
           Serial.printf("Sent instruction: %s\n", instruction);
 
@@ -158,17 +171,23 @@ void ExecuteTasks(void *pvParameters) {
           while (!proceed) {
             delay(100);
           }
-          delay(100); 
+          delay(100);
+          friesTask7();
           break;
-          }
-        case 3: friesTask4(); break;
-        
+        }
+
       }
     }
     doBurger = true;
     proceed = false;
+
   }
 
+  /*
+   * The doBurger loop. After finishing the fries step, the robot will repeat the burger loop until we run out of time
+   * It will do its own loop until it needs to do the burger plating step. The burger will then send communication wirelessly to 
+   * the Screwdriver control ESP-32.
+  */
   while (doBurger) {
     // Execute tasks 0 to 16
     for (int i = 0; i < 16; i++) {
@@ -226,230 +245,134 @@ void ExecuteTasks(void *pvParameters) {
 }
 
 // burger tasks from task 0 to task 15
-void burgerTask0() { Serial.println("Executing dummy task 0"); delay(1000);}
-void burgerTask1() { Serial.println("Executing dummy task 1"); delay(1000);}
-void burgerTask2() { Serial.println("Executing dummy task 2"); delay(1000);}
-void burgerTask3() { Serial.println("Executing dummy task 3"); delay(1000);}
-void burgerTask4() { Serial.println("Executing dummy task 4"); delay(1000);}
-void burgerTask5() { Serial.println("Executing dummy task 5"); delay(1000);}
-void burgerTask6() { Serial.println("Executing dummy task 6"); delay(1000);}
-void burgerTask7() { Serial.println("Executing dummy task 7"); delay(1000);}
-void burgerTask8() { Serial.println("Executing dummy task 8"); delay(1000);}
-void burgerTask9() { Serial.println("Executing dummy task 9"); delay(1000);}
-void burgerTask10() { Serial.println("Executing dummy task 10"); delay(1000);}
-void burgerTask11() { Serial.println("Executing dummy task 11"); delay(1000);}
-void burgerTask12() { Serial.println("Executing dummy task 12"); delay(1000);}
-void burgerTask13() { Serial.println("Executing dummy task 13"); delay(1000);}
-void burgerTask14() { Serial.println("Executing dummy task 14"); delay(1000);}
-void burgerTask15() { Serial.println("Executing dummy task 15"); delay(1000);}
-void burgerTask16() { Serial.println("Executing dummy task 16"); delay(1000);}
+void burgerTask0() { 
+  
+  Serial.println("Executing dummy task 0"); 
+  delay(1000);
+}
+
+void burgerTask1() { 
+  Serial.println("Executing dummy task 1"); 
+  delay(1000);
+}
+
+void burgerTask2() { 
+  Serial.println("Executing dummy task 2"); 
+  delay(1000);
+}
+
+void burgerTask3() { 
+  Serial.println("Executing dummy task 3"); 
+  delay(1000);
+}
+
+void burgerTask4() { 
+  Serial.println("Executing dummy task 4"); 
+  delay(1000);
+}
+
+void burgerTask5() { 
+  Serial.println("Executing dummy task 5"); 
+  delay(1000);
+}
+
+void burgerTask6() { 
+  Serial.println("Executing dummy task 6"); 
+  delay(1000);
+}
+
+void burgerTask7() { 
+  Serial.println("Executing dummy task 7"); 
+  delay(1000);
+}
+
+void burgerTask8() { 
+  Serial.println("Executing dummy task 8"); 
+  delay(1000);
+}
+
+void burgerTask9() { 
+  Serial.println("Executing dummy task 9"); 
+  delay(1000);
+}
+
+void burgerTask10() { 
+  Serial.println("Executing dummy task 10"); 
+  delay(1000);
+}
+
+void burgerTask11() { 
+  Serial.println("Executing dummy task 11"); 
+  delay(1000);
+}
+
+void burgerTask12() { 
+  Serial.println("Executing dummy task 12"); 
+  delay(1000);
+}
+
+void burgerTask13() { 
+  Serial.println("Executing dummy task 13"); 
+  delay(1000);
+}
+
+void burgerTask14() { 
+  Serial.println("Executing dummy task 14"); 
+  delay(1000);
+}
+
+void burgerTask15() { 
+  Serial.println("Executing dummy task 15"); 
+  delay(1000);
+}
+
+void burgerTask16() { 
+  Serial.println("Executing dummy task 16"); 
+  delay(1000);
+}
 
 //fries tasks from task 0 to task 6
 void friesTask0() { 
-  Serial.println("Executing fries task 0"); delay(1000);
-  }
+  Serial.println("Executing fries task 0"); 
+  delay(1000);
+}
+
 void friesTask1() { 
-  Serial.println("Executing fries task 1"); delay(1000);
-  }
+  Serial.println("Executing fries task 1"); 
+  delay(1000);
+}
+
 void friesTask2() { 
-  Serial.println("Executing fries task 2"); delay(1000);
-  }
+  Serial.println("Executing fries task 2"); 
+  delay(1000);
+}
+
 void friesTask3() { 
-  Serial.println("Executing fries task 3"); delay(1000);
-  }
+  Serial.println("Executing fries task 3"); 
+  delay(1000);
+}
+
 void friesTask4() { 
-  Serial.println("Executing fries task 4"); delay(1000);
-  }
-
-/*
- * @brief Converts integer into binary
- *
- * This method converts an integer value into a binary value to be send down communication pins
- * 
- * @param integerValue the integer value to be converted
-*/
-
-void setCommPinOutput(int integerValue){
-  pinMode(commBit0, OUTPUT);
-  pinMode(commBit1, OUTPUT);
-  pinMode(commBit2, OUTPUT);
-  pinMode(commBit3, OUTPUT);
-  switch(integerValue){
-    case 0: 
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, LOW);
-      break;
-
-    case 1:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, LOW);
-      break;
-
-    case 2:
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, LOW);
-      break;
-
-    case 3:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, LOW);
-      break;
-    
-    case 4:
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, LOW);
-      break;
-    
-    case 5:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, LOW);
-      break;
-
-    case 6:
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, LOW);
-      break;
-
-    case 7:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, LOW);
-      break;
-    
-    case 8:
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, HIGH);
-      break;
-    
-    case 9:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, HIGH);
-      break;
-
-    case 10:
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, HIGH);
-      break;
-
-    case 11:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, LOW);
-      digitalWrite(commBit3, HIGH);
-      break;
-
-    case 12:
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, HIGH);
-      break;
-
-    case 13:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, LOW);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, HIGH);
-      break;
-
-    case 14:
-      digitalWrite(commBit0, LOW);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, HIGH);
-      break;
-
-    case 15:
-      digitalWrite(commBit0, HIGH);
-      digitalWrite(commBit1, HIGH);
-      digitalWrite(commBit2, HIGH);
-      digitalWrite(commBit3, HIGH);
-      break;
-  }
+  Serial.println("Executing fries task 4"); 
+  delay(1000);
 }
 
-/*
- * @brief Reads pin values and converts to integer
- *
- * The method reads the communication pins and converts the binary signal into integer value
- * 
-*/
-
-int readCommPinInput(){
-
-  pinMode(commBit0, INPUT);
-  pinMode(commBit1, INPUT);
-  pinMode(commBit2, INPUT);
-  pinMode(commBit3, INPUT);
-
-  if (commBit0 == LOW && commBit1 == LOW && commBit2 == LOW && commBit3 == LOW) {
-    return 0;
-  }
-  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == LOW && commBit3 == LOW) {
-    return 1;
-  }
-  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == LOW && commBit3 == LOW) {
-    return 2;
-  }
-  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == LOW && commBit3 == LOW) {
-    return 3;
-  }
-  else if (commBit0 == LOW && commBit1 == LOW && commBit2 == HIGH && commBit3 == LOW) {
-    return 4;
-  }
-  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == HIGH && commBit3 == LOW) {
-    return 5;
-  }
-  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == HIGH && commBit3 == LOW) {
-    return 6;
-  }
-  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == HIGH && commBit3 == LOW) {
-    return 7;
-  }
-  else if (commBit0 == LOW && commBit1 == LOW && commBit2 == LOW && commBit3 == HIGH) {
-    return 8;
-  }
-  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == LOW && commBit3 == HIGH) {
-    return 9;
-  }
-  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == LOW && commBit3 == HIGH) {
-    return 10;
-  }
-  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == LOW && commBit3 == HIGH) {
-    return 11;
-  }
-  else if (commBit0 == LOW && commBit1 == LOW && commBit2 == HIGH && commBit3 == HIGH) {
-    return 12;
-  }
-  else if (commBit0 == HIGH && commBit1 == LOW && commBit2 == HIGH && commBit3 == HIGH) {
-    return 13;
-  }
-  else if (commBit0 == LOW && commBit1 == HIGH && commBit2 == HIGH && commBit3 == HIGH) {
-    return 14;
-  }
-  else if (commBit0 == HIGH && commBit1 == HIGH && commBit2 == HIGH && commBit3 == HIGH) {
-    return 15;
-  }
-  return -1; //something went very very wrong here if it returns -1
+void friesTask5() { 
+  Serial.println("Executing fries task 5"); 
+  delay(2000);
 }
+
+void friesTask6() { 
+  Serial.println("Executing fries task 6"); 
+  delay(1000);
+}
+
+void friesTask7() {
+   Serial.println("Executing fries task 7"); 
+   setCommPinOutput(7);
+   delay(50);
+
+   delay(1000);
+   }
+
+
