@@ -1,11 +1,17 @@
 {
 	"folders": [
 		{
+			"path": "Screwdrive-ESP32"
+		},
+		{
+			"name": "DemonCore-ESP32",
 			"path": "DemonCore-ESP32"
 		},
 		{
-			"name": "Screwdrive-ESP32",
-			"path": "Screwdrive-ESP32"
+			"path": "DemonCore-ESP32-Slave"
+		},
+		{
+			"path": "Screwdriver-Slave"
 		}
 	],
 	"settings": {}

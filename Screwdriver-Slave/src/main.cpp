@@ -3,15 +3,13 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#define lineFrontLeft 36
-#define lineFrontRight 39
+#define lineFrontLeft 39
+#define lineFrontRight 36
 #define lineBackLeft 32
 #define lineBackRight 33
 
-#define frontLeftSensor 35
-#define backLeftSensor 34
-#define frontRightSensor 38
-#define backRightSensor 37
+#define frontLeftSensor 34
+#define backLeftSensor 35
 
 #define commBit0 21
 #define commBit1 22
@@ -24,7 +22,7 @@
 bool doBurger = false;
 bool ready = false;
 bool move = true;
-int state = 1;
+int state = 0;
 bool isThere = false;
 
 //Global variables for counting lines
@@ -32,13 +30,10 @@ int currentLineCount = 0;
 bool almostThere = false;
 
 //booleans for sensor tripping on left and right sides
-bool frontRightDetected = false;
 bool frontLeftDetected = false;
 bool backLeftDetected = false;
-bool backRightDetected = false;
 
 bool forwardDetected = false;
-int isLeft = 0;
 
 //Global variables for counting rotations
 int currentRotationCount = 0;
@@ -48,8 +43,8 @@ const int pwmFrequency = 100; // PWM frequency in Hz
 const int pwmResolution = 12; // PWM resolution (1-16 bits)
 
 //Motor pin declaration
-const int motorL1 = 13;
-const int motorL2 = 15;
+const int motorL1 = 15;
+const int motorL2 = 13;
 const int motorR1 = 2;
 const int motorR2 = 4;
 
@@ -73,6 +68,8 @@ void followLine(int maxSpeed, bool isForwardDir);
 bool countLine(int lines, bool isForwardDir);
 void readSideSensors(bool isForwardDir);
 void motorPower(bool isForwardDir, uint32_t leftValue, uint32_t rightValue);
+
+void centreRobot(bool isForward);
 
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
@@ -114,94 +111,106 @@ void setup(){
 }
 
 void loop(){
-  followLine(1023, false);
+  motorPower(true, 4095, 4095);
+
 }
 
 
-void wireCommunication(void *pvParameters){
-  //Actual communication protocols
-  /*
-  if (digitalRead(ready) == HIGH) {  // Check if ESP-1 is ready
-    int readInput = readCommPinInput();
-    Serial.print("Received Task Number: ");
-    Serial.println(readInput);
 
-    digitalWrite(signal, HIGH);  // Signal that ESP-2 has received the data
-
-    // Create task on core 1
-    xTaskCreatePinnedToCore(
-      executeTask,       // Task function
-      "executeTask",     // Name of the task (for debugging)
-      4096,             // Stack size (bytes)
-      NULL,             // Parameter to pass to the task
-      1,                // Task priority
-      NULL,             // Task handle
-      1                 // Core to run the task on (0 in this case)
-      );
-      while(!ready){
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-      }
-      ready = false;
-    }
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-  }
-
-    digitalWrite(signal, LOW);   // Signal that the task is completed
-    Serial.println("Task completed and signal sent back to ESP-1");
-    
-    // Wait a bit before the next read
-    delay(50);
-  }*/
-  
-  Serial.println("Communicating...");
-  while(true){
-    if(state == 0){
+void wireCommunication(void *pvParameters) {
+  while (true) {
+    if (digitalRead(readyPin) == HIGH) { // Check if ESP-1 is ready
       state = readCommPinInput();
-    }
-    else{
+      Serial.print("Received Task Number: ");
+      Serial.println(state);
+
+      digitalWrite(signal, HIGH); // Signal that ESP-2 has received the data
+
       xTaskCreatePinnedToCore(
-      executeTask,       // Task function
-      "executeTask",     // Name of the task (for debugging)
-      4096,             // Stack size (bytes)
-      NULL,             // Parameter to pass to the task
-      1,                // Task priority
-      NULL,             // Task handle
-      1                 // Core to run the task on (0 in this case)
+          executeTask,     // Task function
+          "executeTask",   // Name of the task (for debugging)
+          4096,            // Stack size (bytes)
+          NULL,            // Parameter to pass to the task
+          1,               // Task priority
+          NULL,            // Task handle
+          1                // Core to run the task on (0 in this case)
       );
-      while(!ready){
+      while (!ready) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
       }
       ready = false;
+      Serial.println("Task Complete");
+
+      digitalWrite(signal, LOW); // Signal that the task is completed
+      Serial.println("Task completed and signal sent back to ESP-1");
     }
+    // Wait a bit before the next read
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
+
 
 
 void executeTask(void *pvParameters){  
   Serial.println("Executing tasks...");
   bool complete = false;
   switch(state){
-    case 1: {
-      complete = goToState(12,1,true);
+    case 0: {
+      complete = goToState(12,2,true);
       if(complete){
         Serial.print("Complete round: ");
+        Serial.println(state);
         ready = true;
         delay(1000);
         move = true;
       }
       break;
     }
-    case 2:{
-      complete = goToState(12, 3, true);
+    case 1:{
+      complete = goToState(12, 1, true);
+      if(complete){
+        Serial.print("Complete round: ");
+        Serial.println(state);
+        ready = true;
+        delay(1000);
+        move = true;
+      }
+      break;
+    }
+    case 2: {
+      complete = goToState(12, 1, true);
+      if(complete){
+        Serial.print("Complete round: ");
+        Serial.println(state);
+        ready = true;
+        delay(1000);
+        move = true;
+      }
+      break;
     }
     case 3: {
-      complete = goToState(12, 1, false);
+      int rotations = 200;
+      complete = goToState(rotations, 2, false);
+      if(complete){
+        Serial.print("Complete round: ");
+        Serial.println(state);
+        ready = true;
+        delay(1000);
+        move = true;
+      }
+      break;
     }
     case 4: {
-      complete = goToState(12, 2, false);
+      complete = goToState(12, 2, true);
+      if(complete){
+        Serial.print("Complete round: ");
+        Serial.println(state);
+        ready = true;
+        delay(1000);
+        move = true;
+      }
+      break;
     }
-
     default:
       break; 
   }
@@ -209,12 +218,13 @@ void executeTask(void *pvParameters){
   vTaskDelete(NULL);
 }
 
-bool goToState(int rotations, int lines, bool isForwardDir){
-  Serial.println("Moving...");
+bool goToState(int rotations, int lines, bool isForwardDir){ 
   currentLineCount = 0;
   currentRotationCount = 0;
-  while(move){
+  almostThere = false;
 
+  while(move){
+    Serial.println(currentLineCount);
     /*
     xTaskCreatePinnedToCore(
       countRotation,       // Task function
@@ -233,34 +243,39 @@ bool goToState(int rotations, int lines, bool isForwardDir){
     }
 
     if(!almostThere && currentRotationCount < rotations){
-      followLine(1023, isForwardDir);
+      int speedReduction = currentLineCount;
+      if(speedReduction == 0){
+        speedReduction = 1;
+      }
+      int speed = (int) (2047 / speedReduction);
+      followLine(speed, isForwardDir);
     }
 
     else{
       readSideSensors(isForwardDir);
       if(isForwardDir){
-        if(frontLeftDetected || frontRightDetected){
-          motorPower(!isForwardDir, 1023, 1023);
-          delay(50);
-          move = false;
-          Serial.println("Stopping");
-        }
-      }
-
-      else{
-        if(backLeftDetected || backRightDetected){
-          motorPower(isForwardDir, 0,0);
-          delay(10);
+        if(frontLeftDetected){
+          currentLineCount++;
           followLine(4095, !isForwardDir);
           delay(100);
           move = false;
           Serial.println("Stopping");
         }
       }
-      followLine(800, isForwardDir);
+
+      else{
+        if(backLeftDetected){
+          currentLineCount++;
+          followLine(4095, !isForwardDir);
+          delay(100);
+          move = false;
+          Serial.println("Stopping");
+        }
+      }
+      followLine(700, isForwardDir);
     }
   }
-  motorPower(isForwardDir, 0,0);
+  centreRobot(isForwardDir);
   return true;
 }
 
@@ -277,20 +292,22 @@ void followLine(int maxSpeed, bool isForwardDir){
     if(rightValue < 0){
       rightValue = 0;
     }
-    motorPower(isForwardDir, rightValue, leftValue);
+    motorPower(isForwardDir, leftValue, rightValue);
   }
 
   else{
-    int leftValue = maxSpeed - (int) (analogRead(lineBackLeft) * 0.5);
-    int rightValue = maxSpeed - (int) (analogRead(lineBackRight) * 0.5);
 
+    int analogLeftValue = analogRead(lineBackLeft);
+    int analogRightValue = analogRead(lineBackRight);
+    int leftValue = maxSpeed - (int) (analogLeftValue* 0.3);
+    int rightValue = maxSpeed - (int) (analogRightValue* 0.84);
     if(leftValue < 0){      
       leftValue = 0;
       }
     if(rightValue < 0){
       rightValue = 0;
     }
-    motorPower(isForwardDir, rightValue, leftValue);
+    motorPower(isForwardDir, leftValue, rightValue);
   }
 
 }
@@ -319,6 +336,15 @@ void motorPower(bool isForwardDir, uint32_t leftValue, uint32_t rightValue){
 
 
 bool countLine(int lines, bool isForwardDir){
+  /*
+  Serial.print("Front Left Detected: ");
+  Serial.println(frontLeftDetected);
+  Serial.print("Forward Detected: ");
+  Serial.println(forwardDetected);
+  Serial.print("Back Left Detected: ");
+  Serial.println(backLeftDetected);
+  */
+  Serial.println(currentLineCount);
   if(currentLineCount == lines){
     return true;
   }
@@ -326,89 +352,32 @@ bool countLine(int lines, bool isForwardDir){
   readSideSensors(isForwardDir);
 
   if(isForwardDir){
-    if(frontLeftDetected || frontRightDetected){
+    if(frontLeftDetected ){
       if(!forwardDetected){
-        if(frontLeftDetected){
-          isLeft = 1;
-        }
-        else{
-          isLeft = 2;
-        }
         forwardDetected = true;
       }
     }
 
     if(forwardDetected){
-      if(backLeftDetected || backRightDetected){
-        switch (isLeft)
-        {
-        case 1:
-          if(backLeftDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          else{
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          break;
-        
-        case 2:
-          if(backRightDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
+      if(backLeftDetected){
+          currentLineCount++;
           forwardDetected = false;
-            isLeft = 0;
-
-        default:
-          break;
-        }
       }
     }
   }
   
   else{
-    if(backLeftDetected || backRightDetected){
+    if(backLeftDetected){
       if(!forwardDetected){
-        if(backLeftDetected){
-          isLeft = 3;
-        }
-        else{
-          isLeft = 4;
-        }
+        forwardDetected = true;
       }
     }
 
     if(forwardDetected){
-      switch (isLeft)
-        {
-        case 3:
-          if(frontLeftDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          else{
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          break;
-        
-        case 2:
-          if(frontRightDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          forwardDetected = false;
-            isLeft = 0;
-
-        default:
-          break;
-        }
+      if(frontLeftDetected){
+        currentLineCount++;
+        forwardDetected = false;
+      }
     }
   }
  
@@ -419,18 +388,13 @@ bool countLine(int lines, bool isForwardDir){
 void readSideSensors(bool isForwardDir){
   int frontLeftValue = analogRead(frontLeftSensor);
   int backLeftValue = analogRead(backLeftSensor);
-  int frontRightValue = analogRead(frontRightSensor);
-  int backRightValue = analogRead(backRightSensor);
 
-/*
+  /*
   Serial.print("Front Left Value: ");
   Serial.println(frontLeftValue);
-  Serial.print("Front Right Value: ");
-  Serial.println(frontRightValue);
   Serial.print("Back Left Value: ");
   Serial.println(backLeftValue);
-  Serial.print("Back Right Value: ");
-  Serial.println(backRightValue);
+  delay(500);
   */
 
   if(frontLeftValue > OPTICAL_SENSOR_THRESHOLD){
@@ -442,14 +406,6 @@ void readSideSensors(bool isForwardDir){
     //Serial.println("Front Left Detected: False");
   }
   
-  if(frontRightValue > OPTICAL_SENSOR_THRESHOLD){
-    frontRightDetected = true;
-    //Serial.println("Front Right Detected: True");
-  }
-  else {
-    frontRightDetected = false;
-    //Serial.println("Front Right Detected: False");
-  }
 
   if(backLeftValue > OPTICAL_SENSOR_THRESHOLD){
     backLeftDetected = true;
@@ -458,15 +414,6 @@ void readSideSensors(bool isForwardDir){
   else{
     backLeftDetected = false;
     //Serial.println("Back Left Detected: False");
-  }
-
-  if(backRightValue > OPTICAL_SENSOR_THRESHOLD){
-    backRightDetected = true;
-    //Serial.println("Back Right Detected: True");
-  }
-  else{
-    backRightDetected = false;
-    //Serial.println("Back Right Detected: False");
   }
 }
 
@@ -478,7 +425,39 @@ void countRotation(void *pvParameters){
   vTaskDelete(NULL);
 }
 
-
+void centreRobot(bool isForwardDir){
+  readSideSensors(isForwardDir);
+  if(isForwardDir){
+    if(backLeftDetected){
+      while(backLeftDetected){
+        readSideSensors(isForwardDir);
+        followLine(1023, !isForwardDir);
+      }
+    }
+    else if(frontLeftDetected){
+      while (frontLeftDetected){
+        readSideSensors(isForwardDir);
+        
+        followLine(1023, isForwardDir);
+      }
+    }
+  }
+  else{
+    if(backLeftDetected){
+      while(backLeftDetected){
+        readSideSensors(isForwardDir);
+        followLine(1023, isForwardDir);
+      }
+    }
+    else if(frontLeftDetected){
+      while(frontLeftDetected){
+        readSideSensors(isForwardDir);
+        followLine(1023, !isForwardDir);
+      }
+    }
+  }
+  motorPower(isForwardDir, 0,0);
+}
 
 /* @brief Converts integer into binary
  *

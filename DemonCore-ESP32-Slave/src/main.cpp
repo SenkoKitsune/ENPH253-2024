@@ -3,15 +3,15 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#define lineFrontLeft 36
-#define lineFrontRight 39
-#define lineBackLeft 32
-#define lineBackRight 33
+#define lineFrontLeft 39
+#define lineFrontRight 36
+#define lineBackLeft 33
+#define lineBackRight 32
 
-#define frontLeftSensor 35
-#define backLeftSensor 34
-#define frontRightSensor 38
-#define backRightSensor 37
+#define frontLeftSensor 34
+#define backLeftSensor 35
+#define frontRightSensor 37
+#define backRightSensor 38
 
 #define commBit0 21
 #define commBit1 22
@@ -44,7 +44,7 @@ int isLeft = 0;
 int currentRotationCount = 0;
 
 // PWM configuration
-const int pwmFrequency = 100; // PWM frequency in Hz
+const int pwmFrequency = 250; // PWM frequency in Hz
 const int pwmResolution = 12; // PWM resolution (1-16 bits)
 
 //Motor pin declaration
@@ -62,6 +62,14 @@ const int R2 = 3;
 //Constants for line detection
 const int OPTICAL_SENSOR_THRESHOLD = 500;
 
+// PID control constants
+float Kp = 0;
+float Ki = 0;
+float Kd = 0;
+
+float previousError = 0;
+float integral = 0;
+
 //forward declaration of methods
 void executeTask(void *pvParameters);
 void countRotation(void *pvParameters);
@@ -73,6 +81,7 @@ void followLine(int maxSpeed, bool isForwardDir);
 bool countLine(int lines, bool isForwardDir);
 void readSideSensors(bool isForwardDir);
 void motorPower(bool isForwardDir, uint32_t leftValue, uint32_t rightValue);
+void centreRobot(bool isForwardDir);
 
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
@@ -114,7 +123,11 @@ void setup(){
 }
 
 void loop(){
-  followLine(1023, false);
+  goToState(12,3, false);
+  delay(1000);
+  move = true;
+  goToState(12,3,true);
+  vTaskDelete(NULL);
 }
 
 
@@ -202,6 +215,7 @@ bool goToState(int rotations, int lines, bool isForwardDir){
   Serial.println("Moving...");
   currentLineCount = 0;
   currentRotationCount = 0;
+  almostThere = false;
   while(move){
 
     /*
@@ -222,15 +236,21 @@ bool goToState(int rotations, int lines, bool isForwardDir){
     }
 
     if(!almostThere && currentRotationCount < rotations){
-      followLine(1023, isForwardDir);
+      int speedReduction = currentLineCount;
+      if(speedReduction == 0){
+        speedReduction = 1;
+      }
+      int speed = (int) (2047 / speedReduction);
+      followLine(speed, isForwardDir);
     }
 
     else{
       readSideSensors(isForwardDir);
+
       if(isForwardDir){
         if(frontLeftDetected || frontRightDetected){
-          motorPower(!isForwardDir, 1023, 1023);
-          delay(50);
+           followLine(4095, !isForwardDir);
+          delay(100);
           move = false;
           Serial.println("Stopping");
         }
@@ -238,51 +258,88 @@ bool goToState(int rotations, int lines, bool isForwardDir){
 
       else{
         if(backLeftDetected || backRightDetected){
-          motorPower(isForwardDir, 0,0);
-          delay(10);
           followLine(4095, !isForwardDir);
           delay(100);
           move = false;
           Serial.println("Stopping");
         }
       }
-      followLine(800, isForwardDir);
+
+      followLine(1023, isForwardDir);
     }
   }
-  motorPower(isForwardDir, 0,0);
+  centreRobot(isForwardDir);
   return true;
 }
 
 
-void followLine(int maxSpeed, bool isForwardDir){
-   if(isForwardDir){
-    int analogLeftValue = analogRead(lineFrontLeft);
-    int analogRightValue = analogRead(lineFrontRight);
-    int leftValue = maxSpeed - (int) (analogLeftValue * 0.3);
-    int rightValue = maxSpeed - (int) (analogRightValue * 0.3);    
-    if(leftValue < 0){      
-      leftValue = 0;
-      }
-    if(rightValue < 0){
-      rightValue = 0;
-    }
-    motorPower(isForwardDir, rightValue, leftValue);
+void followLine(int maxSpeed, bool isForwardDir) {
+  int analogLeftValue, analogRightValue, leftValue, rightValue;
+  if (isForwardDir) {
+    analogLeftValue = analogRead(lineFrontLeft);
+    analogRightValue = analogRead(lineFrontRight);
+    Kp = 0.5;
+    Ki = 0.25;
+    Kd = 0.15;
+  } 
+  
+  else {
+    analogLeftValue = analogRead(lineBackLeft);
+    analogRightValue = analogRead(lineBackRight);
+    Kp = 0.8;
+    Ki = 0;
+    Kd = 0.3;
   }
 
-  else{
-    int leftValue = maxSpeed - (int) (analogRead(lineBackLeft) * 0.5);
-    int rightValue = maxSpeed - (int) (analogRead(lineBackRight) * 0.5);
 
-    if(leftValue < 0){      
-      leftValue = 0;
-      }
-    if(rightValue < 0){
-      rightValue = 0;
-    }
-    motorPower(isForwardDir, rightValue, leftValue);
-  }
+int error = analogLeftValue - analogRightValue;
+integral += error;
+float derivative = error - previousError;
+previousError = error;
 
+float output = Kp * error + Ki * integral + Kd * derivative;
+
+// Optional: Limit the integral term to prevent windup
+float maxIntegral = 1000; // Adjust as necessary
+if (integral > maxIntegral) {
+    integral = maxIntegral;
+} else if (integral < -maxIntegral) {
+    integral = -maxIntegral;
 }
+
+// Use output as needed
+
+
+  leftValue = maxSpeed - output;
+  rightValue = maxSpeed + output;
+
+  // Clamp values to the valid PWM range
+  leftValue = constrain(leftValue, 0, maxSpeed);
+  rightValue = constrain(rightValue, 0, maxSpeed);
+
+  // Debugging output values
+  /*
+  Serial.print("Analog Left: ");
+  Serial.print(analogLeftValue);
+  Serial.print(" | Analog Right: ");
+  Serial.print(analogRightValue);
+  Serial.print(" | Error: ");
+  Serial.print(error);
+  Serial.print(" | Integral: ");
+  Serial.print(integral);
+  Serial.print(" | Derivative: ");
+  Serial.print(derivative);
+  Serial.print(" | Output: ");
+  Serial.print(output);
+  Serial.print(" | Left Value: ");
+  Serial.print(leftValue);
+  Serial.print(" | Right Value: ");
+  Serial.println(rightValue);
+  */
+
+  motorPower(isForwardDir, leftValue, rightValue);
+}
+
 
 /* @brief Controls 4 PWM channels to drive 2 Motors
  *
@@ -307,101 +364,145 @@ void motorPower(bool isForwardDir, uint32_t leftValue, uint32_t rightValue){
 }
 
 
-bool countLine(int lines, bool isForwardDir){
-  if(currentLineCount == lines){
+bool countLine(int lines, bool isForwardDir) {
+  Serial.println(currentLineCount);
+
+  if (currentLineCount == lines) {
     return true;
   }
 
   readSideSensors(isForwardDir);
 
-  if(isForwardDir){
-    if(frontLeftDetected || frontRightDetected){
-      if(!forwardDetected){
-        if(frontLeftDetected){
+  if (isForwardDir) {
+    if (frontLeftDetected || frontRightDetected) {
+      if (!forwardDetected) {
+        if (frontLeftDetected) {
           isLeft = 1;
-        }
-        else{
+        } else {
           isLeft = 2;
         }
         forwardDetected = true;
       }
     }
 
-    if(forwardDetected){
-      if(backLeftDetected || backRightDetected){
-        switch (isLeft)
-        {
-        case 1:
-          if(backLeftDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          else{
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          break;
-        
-        case 2:
-          if(backRightDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          forwardDetected = false;
-            isLeft = 0;
+    if (forwardDetected) {
+      if (backLeftDetected || backRightDetected) {
+        switch (isLeft) {
+          case 1:
+            if (backLeftDetected) {
+              currentLineCount++;
+              forwardDetected = false;
+              isLeft = 0;
+            } else {
+              forwardDetected = false;
+              isLeft = 0;
+            }
+            break;
 
-        default:
-          break;
+          case 2:
+            if (backRightDetected) {
+              currentLineCount++;
+              forwardDetected = false;
+              isLeft = 0;
+            } else {
+              forwardDetected = false;
+              isLeft = 0;
+            }
+            break;
+
+          default:
+            break;
         }
       }
     }
-  }
+
+  } 
   
-  else{
-    if(backLeftDetected || backRightDetected){
-      if(!forwardDetected){
-        if(backLeftDetected){
+  else { // Backward direction
+    if (backLeftDetected || backRightDetected) {
+      if (!forwardDetected) {
+        if (backLeftDetected) {
           isLeft = 3;
-        }
-        else{
+        } 
+        
+        else {
           isLeft = 4;
         }
+        forwardDetected = true; // Update forwardDetected here
       }
     }
 
-    if(forwardDetected){
-      switch (isLeft)
-        {
-        case 3:
-          if(frontLeftDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          else{
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          break;
-        
-        case 2:
-          if(frontRightDetected){
-            currentLineCount++;
-            forwardDetected = false;
-            isLeft = 0;
-          }
-          forwardDetected = false;
-            isLeft = 0;
+    if (forwardDetected) {
+      if (frontLeftDetected || frontRightDetected) {
+        switch (isLeft) {
+          case 3:
+            if (frontLeftDetected) {
+              currentLineCount++;
+              forwardDetected = false;
+              isLeft = 0;
+            } 
+            
+            else {
+              forwardDetected = false;
+              isLeft = 0;
+            }
+            break;
 
-        default:
-          break;
+          case 4:
+            if (frontRightDetected) {
+              currentLineCount++;
+              forwardDetected = false;
+              isLeft = 0;
+            } 
+            
+            else {
+              forwardDetected = false;
+              isLeft = 0;
+            }
+            break;
+
+          default:
+            break;
         }
+      }
     }
   }
- 
+
   return false;
+}
+
+
+void centreRobot(bool isForwardDir){
+  readSideSensors(isForwardDir);
+  if(isForwardDir){
+    if(backLeftDetected || backRightDetected){
+      while(backLeftDetected || backRightDetected){
+        readSideSensors(isForwardDir);
+        followLine(1023, !isForwardDir);
+      }
+    }
+    else if(frontLeftDetected || frontRightDetected){
+      while (frontLeftDetected || frontRightDetected){
+        readSideSensors(isForwardDir);
+        followLine(1023, isForwardDir);
+      }
+    }
+  }
+  else{
+    if(backLeftDetected){
+      while(backLeftDetected){
+        readSideSensors(isForwardDir);
+        followLine(1023, isForwardDir);
+      }
+    }
+    else if(frontLeftDetected){
+      while(frontLeftDetected){
+        readSideSensors(isForwardDir);
+        followLine(1023, !isForwardDir);
+      }
+    }
+  }
+  motorPower(isForwardDir, 0,0);
 }
 
 
