@@ -57,6 +57,14 @@ const int R2 = 3;
 //Constants for line detection
 const int OPTICAL_SENSOR_THRESHOLD = 500;
 
+// PID control constants
+float Kp = 0;
+float Ki = 0;
+float Kd = 0;
+
+float previousError = 0;
+float integral = 0;
+
 //forward declaration of methods
 void executeTask(void *pvParameters);
 void countRotation(void *pvParameters);
@@ -280,36 +288,71 @@ bool goToState(int rotations, int lines, bool isForwardDir){
 }
 
 
-void followLine(int maxSpeed, bool isForwardDir){
-   if(isForwardDir){
-    int analogLeftValue = analogRead(lineFrontLeft);
-    int analogRightValue = analogRead(lineFrontRight);
-    int leftValue = maxSpeed - (int) (analogLeftValue * 0.3);
-    int rightValue = maxSpeed - (int) (analogRightValue * 0.3);    
-    if(leftValue < 0){      
-      leftValue = 0;
-      }
-    if(rightValue < 0){
-      rightValue = 0;
-    }
-    motorPower(isForwardDir, leftValue, rightValue);
+void followLine(int maxSpeed, bool isForwardDir) {
+  int analogLeftValue, analogRightValue, leftValue, rightValue;
+  if (isForwardDir) {
+    analogLeftValue = analogRead(lineFrontLeft);
+    analogRightValue = analogRead(lineFrontRight);
+    Kp = 0.5;
+    Ki = 0.25;
+    Kd = 0.15;
+  } 
+  
+  else {
+    analogLeftValue = analogRead(lineBackLeft);
+    analogRightValue = analogRead(lineBackRight);
+    Kp = 0.5;
+    Ki = 0.25;
+    Kd = 0.15;
   }
 
-  else{
 
-    int analogLeftValue = analogRead(lineBackLeft);
-    int analogRightValue = analogRead(lineBackRight);
-    int leftValue = maxSpeed - (int) (analogLeftValue* 0.3);
-    int rightValue = maxSpeed - (int) (analogRightValue* 0.84);
-    if(leftValue < 0){      
-      leftValue = 0;
-      }
-    if(rightValue < 0){
-      rightValue = 0;
-    }
-    motorPower(isForwardDir, leftValue, rightValue);
-  }
+int error = analogLeftValue - analogRightValue;
+integral += error;
+float derivative = error - previousError;
+previousError = error;
 
+float output = Kp * error + Ki * integral + Kd * derivative;
+
+// Optional: Limit the integral term to prevent windup
+float maxIntegral = 1000; // Adjust as necessary
+if (integral > maxIntegral) {
+    integral = maxIntegral;
+} else if (integral < -maxIntegral) {
+    integral = -maxIntegral;
+}
+
+// Use output as needed
+
+
+  leftValue = maxSpeed - output;
+  rightValue = maxSpeed + output;
+
+  // Clamp values to the valid PWM range
+  leftValue = constrain(leftValue, 0, maxSpeed);
+  rightValue = constrain(rightValue, 0, maxSpeed);
+
+  // Debugging output values
+  /*
+  Serial.print("Analog Left: ");
+  Serial.print(analogLeftValue);
+  Serial.print(" | Analog Right: ");
+  Serial.print(analogRightValue);
+  Serial.print(" | Error: ");
+  Serial.print(error);
+  Serial.print(" | Integral: ");
+  Serial.print(integral);
+  Serial.print(" | Derivative: ");
+  Serial.print(derivative);
+  Serial.print(" | Output: ");
+  Serial.print(output);
+  Serial.print(" | Left Value: ");
+  Serial.print(leftValue);
+  Serial.print(" | Right Value: ");
+  Serial.println(rightValue);
+  */
+
+  motorPower(isForwardDir, leftValue, rightValue);
 }
 
 /* @brief Controls 4 PWM channels to drive 2 Motors
