@@ -286,7 +286,7 @@ void followLine(int maxSpeed, bool isForwardDir) {
   else {
     analogLeftValue = analogRead(lineBackLeft);
     analogRightValue = analogRead(lineBackRight);
-    Kp = 0.8;
+    Kp = 0.75;
     Ki = 0;
     Kd = 0.3;
   }
