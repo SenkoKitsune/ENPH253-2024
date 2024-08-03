@@ -4,6 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include <ESP32Servo.h>
 
 const char* ssid = "U235-Control";  // Replace with your AP's SSID
 const char* password = "SkibidiToilet";  // Replace with your AP's password
@@ -16,9 +17,22 @@ bool proceed = false;
 #define commBit1 22
 #define commBit2 19
 #define commBit3 8
+#define signal 7
+#define ready 5
+
+#define armServoPin 27
+#define turnServoPin 33
+
+// Define initial speed and delay parameters for smooth servo control
+int minDelay = 30;      // Minimum delay in milliseconds
+int maxDelay = 50;     // Maximum delay in milliseconds
+int currentArmServoPos = 30; // Start from the middle position
+int currentTurnServoPos = 100;
 
 AsyncClient client;
 QueueHandle_t commandQueue;
+Servo armServo;
+Servo turnServo;
 
 // Forward declaration of tasks
 void TCP_Client(void *pvParameters);
@@ -51,9 +65,14 @@ void friesTask7();
 
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
+void waitForSignal(int pin);
+void performTask(int taskNo);
+
+float easeInOutCubicSlow(float t);
+void smoothServoControl(int endPos, int servoNo);
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   // Connect to ESP32 AP
   WiFi.begin(ssid, password);
@@ -376,3 +395,161 @@ void friesTask7() {
    }
 
 
+// Revised cubic easing function with slower easing-in
+float easeInOutCubicSlow(float t) {
+  t *= 2;
+  if (t < 1) {
+    return 0.5 * (t * t * t);
+  }
+  t -= 2;
+  return 0.5 * (t * t * t + 2);
+}
+
+/*
+ *@brief controls a servo motor with cubic easing
+ *
+ * @param endPos the absolute end pos (0 <= pos <= 180) to move to
+ * @param servoNo the servo to move
+ */
+void smoothServoControl(int endPos, int servoNo) {
+  int startPos;
+  switch (servoNo)
+  {
+  case 1:
+    startPos = currentArmServoPos;
+    break;
+  case 2:
+    startPos = currentTurnServoPos;
+    break;
+  
+  default:
+    break;
+  }
+  int range = abs(endPos - startPos);
+  int increment = (startPos < endPos) ? 1 : -1;
+
+  for (int i = 0; i <= range; i++) {
+    float progress = (float)i / range;
+    float easedProgress = easeInOutCubicSlow(progress);
+    int pos = startPos + increment * (easedProgress * range);
+    switch (servoNo)
+    {
+    case 1:
+      armServo.write(pos);
+      break;
+    case 2:
+      turnServo.write(pos);
+      break;
+    default:
+      break;
+    }
+    
+    // Calculate delay based on eased progress
+    int currentDelay = minDelay + (int)(easedProgress * (maxDelay - minDelay));
+    delay(currentDelay);
+  }
+  
+  switch (servoNo)
+  {
+  case 1:
+    currentArmServoPos = endPos; // Update the current servo position
+    break;
+  case 2:
+    currentTurnServoPos = endPos;
+    break;
+  
+  default:
+    break;
+  }
+  
+}
+
+
+/* Function to perform a single task */
+
+/*
+ *@brief perform a predetermined task while communicating over a wire connection
+ *
+ * @param taskNo the task number to call
+ */
+void performTask(int taskNo) {
+  Serial.println("Performing Tasks");
+  int angle;
+  int servoNo;
+  switch (taskNo)
+  {
+  case 1:
+    angle = 0;
+    servoNo = 1;
+    break;
+  
+  case 2:
+    angle = 180;
+    servoNo = 1;
+    break;
+
+  default:
+    break;
+  }
+
+  setCommPinOutput(taskNo);
+  Serial.print("Task Number Sent: ");
+  Serial.println(taskNo);
+
+  digitalWrite(ready, HIGH);  // Signal ESP-2 that data is ready
+  smoothServoControl(angle, servoNo);
+  waitForSignal(signal);  // Wait for ESP-2 to complete the task
+  digitalWrite(ready, LOW);  // Reset the ready signal
+
+  // After receiving the signal from ESP-2, reset the output
+  setCommPinOutput(0);
+  Serial.println("Received completion signal from ESP-2");
+}
+
+/* Helper function to wait for signal pin to go LOW */
+void waitForSignal(int pin) {
+  while (digitalRead(pin) == HIGH) {
+    Serial.println("Waiting for signal to go LOW...");
+    delay(10);
+  }
+  Serial.println("Signal is LOW, proceeding...");
+}
+
+/* @brief Converts integer into binary
+ *
+ * This method converts an integer value into a binary value to be sent down communication pins
+ * 
+ * @param integerValue the integer value to be converted
+*/
+void setCommPinOutput(int integerValue) {
+  pinMode(commBit0, OUTPUT);
+  pinMode(commBit1, OUTPUT);
+  pinMode(commBit2, OUTPUT);
+  pinMode(commBit3, OUTPUT);
+
+  digitalWrite(commBit0, bitRead(integerValue, 0));
+  digitalWrite(commBit1, bitRead(integerValue, 1));
+  digitalWrite(commBit2, bitRead(integerValue, 2));
+  digitalWrite(commBit3, bitRead(integerValue, 3));
+}
+
+/*
+ * @brief Reads pin values and converts to integer
+ *
+ * The method reads the communication pins and converts the binary signal into an integer value
+ * 
+*/
+int readCommPinInput() {
+  pinMode(commBit0, INPUT);
+  pinMode(commBit1, INPUT);
+  pinMode(commBit2, INPUT);
+  pinMode(commBit3, INPUT);
+
+  int value = 0;
+  value |= digitalRead(commBit0) << 0;
+  value |= digitalRead(commBit1) << 1;
+  value |= digitalRead(commBit2) << 2;
+  value |= digitalRead(commBit3) << 3;
+
+  return value;
+}
