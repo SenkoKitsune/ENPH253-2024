@@ -23,6 +23,7 @@ bool doBurger = false;
 bool ready = false;
 bool move = true;
 int state = 0;
+int previousState = 0;
 bool isThere = false;
 
 //Global variables for counting lines
@@ -105,7 +106,6 @@ void setup(){
   pinMode(readyPin, INPUT);    // DemonCore-Slave will read this pin
 
 // Create FreeRTOS tasks
-/*
   xTaskCreatePinnedToCore(
     wireCommunication,       // Task function
     "wireCommunication",     // Name of the task (for debugging)
@@ -115,42 +115,49 @@ void setup(){
     NULL,             // Task handle
     0                 // Core to run the task on (0 in this case)
   ); 
-  */
 }
 
 void loop(){
-  motorPower(true, 4095, 4095);
+  vTaskDelete(NULL);
 
 }
 
 
 
 void wireCommunication(void *pvParameters) {
+  delay(50);
   while (true) {
     if (digitalRead(readyPin) == HIGH) { // Check if ESP-1 is ready
       state = readCommPinInput();
       Serial.print("Received Task Number: ");
       Serial.println(state);
-
-      digitalWrite(signal, HIGH); // Signal that ESP-2 has received the data
-
-      xTaskCreatePinnedToCore(
-          executeTask,     // Task function
-          "executeTask",   // Name of the task (for debugging)
-          4096,            // Stack size (bytes)
-          NULL,            // Parameter to pass to the task
-          1,               // Task priority
-          NULL,            // Task handle
-          1                // Core to run the task on (0 in this case)
-      );
-      while (!ready) {
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+      if(state == previousState || state == 8){
+        Serial.println("Bad State");
+        vTaskDelay(50);
       }
-      ready = false;
-      Serial.println("Task Complete");
+      
+      else{
+        digitalWrite(signal, HIGH); // Signal that ESP-2 has received the data
 
-      digitalWrite(signal, LOW); // Signal that the task is completed
-      Serial.println("Task completed and signal sent back to ESP-1");
+        xTaskCreatePinnedToCore(
+            executeTask,     // Task function
+            "executeTask",   // Name of the task (for debugging)
+            4096,            // Stack size (bytes)
+            NULL,            // Parameter to pass to the task
+            1,               // Task priority
+            NULL,            // Task handle
+            1                // Core to run the task on (0 in this case)
+        );
+
+        while (!ready) {
+          vTaskDelay(100 / portTICK_PERIOD_MS);
+        }
+        ready = false;
+        Serial.println("Task Complete");
+
+        digitalWrite(signal, LOW); // Signal that the task is completed
+        Serial.println("Task completed and signal sent back to ESP-1");
+      }
     }
     // Wait a bit before the next read
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -232,7 +239,7 @@ bool goToState(int rotations, int lines, bool isForwardDir){
   almostThere = false;
 
   while(move){
-    Serial.println(currentLineCount);
+    //Serial.println(currentLineCount);
     /*
     xTaskCreatePinnedToCore(
       countRotation,       // Task function
@@ -387,7 +394,7 @@ bool countLine(int lines, bool isForwardDir){
   Serial.print("Back Left Detected: ");
   Serial.println(backLeftDetected);
   */
-  Serial.println(currentLineCount);
+  //Serial.println(currentLineCount);
   if(currentLineCount == lines){
     return true;
   }

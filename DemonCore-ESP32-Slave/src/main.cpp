@@ -109,7 +109,7 @@ void setup(){
   pinMode(readyPin, INPUT);    // DemonCore-Slave will read this pin
 
 // Create FreeRTOS tasks
-/*
+
   xTaskCreatePinnedToCore(
     wireCommunication,       // Task function
     "wireCommunication",     // Name of the task (for debugging)
@@ -119,73 +119,54 @@ void setup(){
     NULL,             // Task handle
     0                 // Core to run the task on (0 in this case)
   ); 
-  */
 }
 
 void loop(){
-  goToState(12,3, false);
-  delay(1000);
-  move = true;
-  goToState(12,3,true);
   vTaskDelete(NULL);
 }
 
 
-void wireCommunication(void *pvParameters){
-  //Actual communication protocols
-  /*
-  if (digitalRead(ready) == HIGH) {  // Check if ESP-1 is ready
-    int readInput = readCommPinInput();
-    Serial.print("Received Task Number: ");
-    Serial.println(readInput);
-
-    digitalWrite(signal, HIGH);  // Signal that ESP-2 has received the data
-
-    // Create task on core 1
-    xTaskCreatePinnedToCore(
-      executeTask,       // Task function
-      "executeTask",     // Name of the task (for debugging)
-      4096,             // Stack size (bytes)
-      NULL,             // Parameter to pass to the task
-      1,                // Task priority
-      NULL,             // Task handle
-      1                 // Core to run the task on (0 in this case)
-      );
-      while(!ready){
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-      }
-      ready = false;
-    }
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-  }
-
-    digitalWrite(signal, LOW);   // Signal that the task is completed
-    Serial.println("Task completed and signal sent back to ESP-1");
-    
-    // Wait a bit before the next read
-    delay(50);
-  }*/
-  
-  Serial.println("Communicating...");
-  while(true){
-    if(state == 0){
+void wireCommunication(void *pvParameters) {
+  delay(200);
+  while (true) {
+    if (digitalRead(readyPin) == HIGH) { // Check if ESP-1 is ready
       state = readCommPinInput();
-    }
-    else{
-      xTaskCreatePinnedToCore(
-      executeTask,       // Task function
-      "executeTask",     // Name of the task (for debugging)
-      4096,             // Stack size (bytes)
-      NULL,             // Parameter to pass to the task
-      1,                // Task priority
-      NULL,             // Task handle
-      1                 // Core to run the task on (0 in this case)
-      );
-      while(!ready){
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+      if(state == 8){
+        state = 0;
+        delay(100);
       }
-      ready = false;
+
+      else if(state != 8){
+        Serial.print("Received Task Number: ");
+        Serial.println(state);
+        digitalWrite(signal, HIGH); // Signal that ESP-2 has received the data
+
+        xTaskCreatePinnedToCore(
+          executeTask,     // Task function
+          "executeTask",   // Name of the task (for debugging)
+          4096,            // Stack size (bytes)
+          NULL,            // Parameter to pass to the task
+          1,               // Task priority
+          NULL,            // Task handle
+          1                // Core to run the task on (0 in this case)
+        );
+        while (!ready) {
+          vTaskDelay(100 / portTICK_PERIOD_MS);
+        }
+
+        ready = false;
+        Serial.println("Task Complete");
+
+        digitalWrite(signal, LOW); // Signal that the task is completed
+
+        while ((readyPin == HIGH)){
+          vTaskDelay(100 / portTICK_PERIOD_MS);
+        }
+      
+        Serial.println("Task completed and signal sent back to ESP-1");
+      }
     }
+    // Wait a bit before the next read
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
@@ -195,19 +176,30 @@ void executeTask(void *pvParameters){
   Serial.println("Executing tasks...");
   switch(state){
     case 1: {
-      bool complete = goToState(12,3,false);
+      bool complete = goToState(12,3,true);
       if(complete){
         Serial.print("Complete round: ");
-        delay(10000);
+        Serial.println(state);
+        ready = true;
         move = true;
       }
       break;
     }
-
+    
+    case 2: {
+      bool complete = goToState(12,3,false);
+      if(complete){
+        Serial.print("Complete round: ");
+        Serial.println(state);
+        ready = true;
+        move = true;
+      }
+      break;
+    }
     default:
       break; 
   }
-
+  Serial.println("Deleting Task executeTask");
   vTaskDelete(NULL);
 }
 
@@ -365,7 +357,7 @@ void motorPower(bool isForwardDir, uint32_t leftValue, uint32_t rightValue){
 
 
 bool countLine(int lines, bool isForwardDir) {
-  Serial.println(currentLineCount);
+  //Serial.println(currentLineCount);
 
   if (currentLineCount == lines) {
     return true;
