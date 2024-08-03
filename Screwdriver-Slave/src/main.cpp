@@ -119,7 +119,6 @@ void setup(){
 
 void loop(){
   vTaskDelete(NULL);
-
 }
 
 
@@ -154,6 +153,7 @@ void wireCommunication(void *pvParameters) {
         }
         ready = false;
         Serial.println("Task Complete");
+        previousState = state;
 
         digitalWrite(signal, LOW); // Signal that the task is completed
         Serial.println("Task completed and signal sent back to ESP-1");
