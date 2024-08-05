@@ -18,7 +18,7 @@ Servo turnServo;
 // Define initial speed and delay parameters for smooth servo control
 int minDelay = 30;      // Minimum delay in milliseconds
 int maxDelay = 50;     // Maximum delay in milliseconds
-int currentArmServoPos = 30; // Start from the middle position
+int currentArmServoPos = 130; // Start from the middle position
 int currentTurnServoPos = 100;
 
 // Revised cubic easing function with slower easing-in
@@ -94,12 +94,8 @@ void setup() {
   // Attach the servo to the specified pin with pulse widths for MG996R
   armServo.attach(armServoPin, 500, 2500); // Min pulse width, Max pulse width
   turnServo.attach(turnServoPin, 500, 2500);
-
-  // Initialize servo to a known position
-  armServo.write(currentArmServoPos); // Set to up
-  turnServo.write(currentTurnServoPos); //set to forward
-  delay(100); // Wait to ensure the servo reaches the position
-  smoothServoControl(60,1);
+  armServo.write(130);
+  turnServo.write(100);
 }
 
 void loop() {
@@ -108,14 +104,9 @@ void loop() {
     int inputValue = Serial.parseInt();
     Serial.print("You entered: ");
     Serial.println(inputValue);
-    if(inputValue >= 180){
-      inputValue -= 180;
-      smoothServoControl(inputValue, 2);
-    }
-    else{
-      smoothServoControl(inputValue, 1);
-    }
-    
+    smoothServoControl(inputValue, 2);
+    Serial.println("Moved to position");
+    Serial.println("Type a value: ");
 
     // Print the received value
     

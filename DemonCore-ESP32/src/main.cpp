@@ -10,7 +10,7 @@ const char* ssid = "U235-Control";  // Replace with your AP's SSID
 const char* password = "SkibidiToilet";  // Replace with your AP's password
 const char* server_ip = "192.168.15.221";  // Default IP for ESP32 AP
 const uint16_t server_port = 80;  // Replace with your server's port
-bool doBurger = false;
+bool doBurger = true;
 bool proceed = false;
 
 #define commBit0 21
@@ -22,12 +22,19 @@ bool proceed = false;
 
 #define armServoPin 27
 #define turnServoPin 33
+#define spatulaMotor1 2 
+#define spatulaMotor2 4 
+
+#define armServoNo 1
+#define turnServoNo 2
 
 // Define initial speed and delay parameters for smooth servo control
-int minDelay = 30;      // Minimum delay in milliseconds
-int maxDelay = 50;     // Maximum delay in milliseconds
-int currentArmServoPos = 30; // Start from the middle position
+const int minDelay = 30;      // Minimum delay in milliseconds
+const int maxDelay = 50;     // Maximum delay in milliseconds
+int currentArmServoPos = 130; // Start from the middle position
 int currentTurnServoPos = 100;
+
+const int spatulaTime = 1100;
 
 AsyncClient client;
 QueueHandle_t commandQueue;
@@ -68,11 +75,28 @@ int readCommPinInput();
 void waitForSignal(int pin);
 void performTask(int taskNo);
 
+void moveSpatula(bool close);
+void stopSpatula();
+void controlSpatula(int taskNo);
+
 float easeInOutCubicSlow(float t);
 void smoothServoControl(int endPos, int servoNo);
 
+const int leftCounter = 180;
+const int centre = 100;
+const int rightCounter = 10;
+
+const int flatSurface = 120;
+const int armUp = 150;
+
 void setup() {
   Serial.begin(115200);
+  // Attach the servo to the specified pin with pulse widths for MG996R
+  armServo.attach(armServoPin, 500, 2500); // Min pulse width, Max pulse width
+  turnServo.attach(turnServoPin, 500, 2500);
+
+  pinMode(spatulaMotor1, OUTPUT);
+  pinMode(spatulaMotor2, OUTPUT);
 
   // Connect to ESP32 AP
   WiFi.begin(ssid, password);
@@ -81,6 +105,8 @@ void setup() {
     Serial.println("Connecting to ESP32 AP...");
   }
   Serial.println("Connected to ESP32 AP");
+  armServo.write(120);
+  turnServo.write(100);
 
   // Create FreeRTOS queue
   commandQueue = xQueueCreate(20, sizeof(char[70]));
@@ -105,10 +131,12 @@ void setup() {
     NULL,
     1                 // Core to run the task on (1 in this case)
   );
+
+  
 }
 
 void loop() {
-  // Main loop can run other tasks if needed
+  vTaskDelete(NULL);
 }
 
 // Task for handling TCP client communication on core 0
@@ -147,6 +175,7 @@ void TCP_Client(void *pvParameters) {
  * It is also responsible for the initial sending of information when the robot has finished up to the hand-off step each loop.
  */
 void ExecuteTasks(void *pvParameters) {
+  delay(1000); //change but allows bot to properly setup
 
 /*
  * The fries loop. It will do its own thing until the fries hand-off step, which will then require the two robots to communicate
@@ -209,13 +238,17 @@ void ExecuteTasks(void *pvParameters) {
   */
   while (doBurger) {
     // Execute tasks 0 to 16
-    for (int i = 0; i < 16; i++) {
+    for (int i = 1; i < 5; i++) {
       switch (i) {
         case 0: burgerTask0(); break;
         case 1: burgerTask1(); break;
         case 2: burgerTask2(); break;
         case 3: burgerTask3(); break;
-        case 4: burgerTask4(); break;
+        case 4:{
+          burgerTask4(); 
+          vTaskDelete(NULL);
+          break;
+        } 
         case 5: burgerTask5(); break;
         case 6: burgerTask6(); break;
         case 7: burgerTask7(); break;
@@ -266,87 +299,93 @@ void ExecuteTasks(void *pvParameters) {
 // burger tasks from task 0 to task 15
 void burgerTask0() { 
   
-  Serial.println("Executing dummy task 0"); 
+  Serial.println("Executing burger task 0");
+
   delay(1000);
 }
 
 void burgerTask1() { 
-  Serial.println("Executing dummy task 1"); 
+  Serial.println("Executing burger task 1"); 
+  performTask(1);
   delay(1000);
 }
 
 void burgerTask2() { 
-  Serial.println("Executing dummy task 2"); 
+  Serial.println("Executing burger task 2"); 
+  controlSpatula(1);
   delay(1000);
 }
 
 void burgerTask3() { 
-  Serial.println("Executing dummy task 3"); 
+  Serial.println("Executing burger task 3");
+  smoothServoControl(centre, 2);
+  controlSpatula(2); 
   delay(1000);
 }
 
 void burgerTask4() { 
-  Serial.println("Executing dummy task 4"); 
+  Serial.println("Executing burger task 4"); 
+  performTask(2);
   delay(1000);
 }
 
 void burgerTask5() { 
-  Serial.println("Executing dummy task 5"); 
+  Serial.println("Executing burger task 5"); 
   delay(1000);
 }
 
 void burgerTask6() { 
-  Serial.println("Executing dummy task 6"); 
+  Serial.println("Executing burger task 6"); 
   delay(1000);
 }
 
 void burgerTask7() { 
-  Serial.println("Executing dummy task 7"); 
+  Serial.println("Executing burger task 7"); 
   delay(1000);
 }
 
 void burgerTask8() { 
-  Serial.println("Executing dummy task 8"); 
+  Serial.println("Executing burger task 8"); 
   delay(1000);
 }
 
 void burgerTask9() { 
-  Serial.println("Executing dummy task 9"); 
+  Serial.println("Executing burger task 9"); 
   delay(1000);
 }
 
 void burgerTask10() { 
-  Serial.println("Executing dummy task 10"); 
+  Serial.println("Executing burger task 10"); 
   delay(1000);
 }
 
 void burgerTask11() { 
-  Serial.println("Executing dummy task 11"); 
+  Serial.println("Executing burger task 11"); 
   delay(1000);
 }
 
 void burgerTask12() { 
-  Serial.println("Executing dummy task 12"); 
+  Serial.println("Executing burger task 12"); 
   delay(1000);
 }
 
 void burgerTask13() { 
-  Serial.println("Executing dummy task 13"); 
+  Serial.println("Executing burger task 13"); 
   delay(1000);
 }
 
 void burgerTask14() { 
-  Serial.println("Executing dummy task 14"); 
+  Serial.println("Executing burger task 14"); 
   delay(1000);
 }
 
 void burgerTask15() { 
-  Serial.println("Executing dummy task 15"); 
+  Serial.println("Executing burger task 15"); 
   delay(1000);
 }
 
 void burgerTask16() { 
-  Serial.println("Executing dummy task 16"); 
+  Serial.println("Executing burger task 16"); 
   delay(1000);
 }
 
@@ -474,18 +513,18 @@ void smoothServoControl(int endPos, int servoNo) {
  */
 void performTask(int taskNo) {
   Serial.println("Performing Tasks");
-  int angle;
-  int servoNo;
+  int armAngle;
+  int turnAngle;
   switch (taskNo)
   {
   case 1:
-    angle = 0;
-    servoNo = 1;
+    armAngle  = 120;
+    turnAngle = 180;
     break;
   
   case 2:
-    angle = 180;
-    servoNo = 1;
+    armAngle = 120;
+    turnAngle = 100;
     break;
 
   default:
@@ -497,10 +536,16 @@ void performTask(int taskNo) {
   Serial.println(taskNo);
 
   digitalWrite(ready, HIGH);  // Signal ESP-2 that data is ready
-  smoothServoControl(angle, servoNo);
+  delay(100);
+  if(armAngle != currentArmServoPos){
+    smoothServoControl(armAngle, 1);
+  }
+  if (turnAngle != currentTurnServoPos){
+    smoothServoControl(turnAngle, 2); 
+    delay(100); //some delay for turning
+  }
   waitForSignal(signal);  // Wait for ESP-2 to complete the task
   digitalWrite(ready, LOW);  // Reset the ready signal
-
   // After receiving the signal from ESP-2, reset the output
   setCommPinOutput(0);
   Serial.println("Received completion signal from ESP-2");
@@ -514,6 +559,42 @@ void waitForSignal(int pin) {
   }
   Serial.println("Signal is LOW, proceeding...");
 }
+
+void moveSpatula(bool close) {
+  if (close) {
+    digitalWrite(spatulaMotor1, HIGH);
+    digitalWrite(spatulaMotor2, LOW);
+  } else {
+    digitalWrite(spatulaMotor1, LOW);
+    digitalWrite(spatulaMotor2, HIGH);
+  }
+}
+
+void stopSpatula() {
+  digitalWrite(spatulaMotor1, LOW);
+  digitalWrite(spatulaMotor2, LOW);
+}
+
+void controlSpatula(int taskNo){
+  switch (taskNo)
+  {
+  case 1:
+    moveSpatula(true);
+    delay(spatulaTime);
+    stopSpatula();
+    break;
+  case 2:
+    moveSpatula(false);
+    delay(spatulaTime);
+    stopSpatula();
+    break;
+  
+
+  default:
+    break;
+  }
+}
+
 
 /* @brief Converts integer into binary
  *

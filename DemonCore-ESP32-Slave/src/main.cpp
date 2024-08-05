@@ -45,7 +45,7 @@ int isLeft = 0;
 int currentRotationCount = 0;
 
 // PWM configuration
-const int pwmFrequency = 250; // PWM frequency in Hz
+const int pwmFrequency = 300; // PWM frequency in Hz
 const int pwmResolution = 12; // PWM resolution (1-16 bits)
 
 //Motor pin declaration
@@ -87,6 +87,8 @@ void centreRobot(bool isForwardDir);
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
 
+TaskHandle_t executeTaskHandle = NULL; // Handle for the executeTask
+
 void setup(){
   Serial.begin(115200);
 
@@ -126,38 +128,37 @@ void loop(){
   vTaskDelete(NULL);
 }
 
-
 void wireCommunication(void *pvParameters) {
-  delay(50);
   while (true) {
     if (digitalRead(readyPin) == HIGH) { // Check if ESP-1 is ready
       state = readCommPinInput();
       Serial.print("Received Task Number: ");
       Serial.println(state);
+      
       if(state == previousState || state == 8){
         Serial.println("Bad State");
         vTaskDelay(50);
-      }
-      
-      else{
+      } else {
         digitalWrite(signal, HIGH); // Signal that ESP-2 has received the data
 
+        // Create the executeTask
         xTaskCreatePinnedToCore(
-            executeTask,     // Task function
-            "executeTask",   // Name of the task (for debugging)
-            4096,            // Stack size (bytes)
-            NULL,            // Parameter to pass to the task
-            1,               // Task priority
-            NULL,            // Task handle
-            1                // Core to run the task on (0 in this case)
+            executeTask,         // Task function
+            "executeTask",       // Name of the task (for debugging)
+            4096,                // Stack size (bytes)
+            NULL,                // Parameter to pass to the task
+            1,                   // Task priority
+            &executeTaskHandle,  // Task handle
+            1                    // Core to run the task on (1 in this case)
         );
 
-        while (!ready) {
+        // Wait until the executeTask is no longer running
+        while (eTaskGetState(executeTaskHandle) != eDeleted) {
+          Serial.println("Task not complete");
           vTaskDelay(100 / portTICK_PERIOD_MS);
         }
-        ready = false;
-        Serial.println("Task Complete");
 
+        Serial.println("Task Complete");
         previousState = state;
 
         digitalWrite(signal, LOW); // Signal that the task is completed
@@ -172,6 +173,7 @@ void wireCommunication(void *pvParameters) {
 
 void executeTask(void *pvParameters){  
   Serial.println("Executing tasks...");
+  delay(1000);
   switch(state){
     case 1: {
       bool complete = goToState(12,3,true);
@@ -207,7 +209,7 @@ bool goToState(int rotations, int lines, bool isForwardDir){
   currentRotationCount = 0;
   almostThere = false;
   while(move){
-
+  Serial.println("In Moving...");
     /*
     xTaskCreatePinnedToCore(
       countRotation,       // Task function
@@ -258,6 +260,7 @@ bool goToState(int rotations, int lines, bool isForwardDir){
       followLine(1023, isForwardDir);
     }
   }
+  Serial.println("Centering Robot...");
   centreRobot(isForwardDir);
   return true;
 }
