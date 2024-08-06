@@ -94,7 +94,7 @@ void setup() {
   // Attach the servo to the specified pin with pulse widths for MG996R
   armServo.attach(armServoPin, 500, 2500); // Min pulse width, Max pulse width
   turnServo.attach(turnServoPin, 500, 2500);
-  armServo.write(130);
+  armServo.write(30);
   turnServo.write(100);
 }
 
@@ -104,7 +104,7 @@ void loop() {
     int inputValue = Serial.parseInt();
     Serial.print("You entered: ");
     Serial.println(inputValue);
-    smoothServoControl(inputValue, 2);
+    smoothServoControl(inputValue, 1);
     Serial.println("Moved to position");
     Serial.println("Type a value: ");
 

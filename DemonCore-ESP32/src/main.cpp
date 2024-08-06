@@ -31,10 +31,10 @@ bool proceed = false;
 // Define initial speed and delay parameters for smooth servo control
 const int minDelay = 30;      // Minimum delay in milliseconds
 const int maxDelay = 50;     // Maximum delay in milliseconds
-int currentArmServoPos = 130; // Start from the middle position
+int currentArmServoPos = 50; // Start from the middle position
 int currentTurnServoPos = 100;
 
-const int spatulaTime = 1100;
+const int spatulaTime = 900;
 
 AsyncClient client;
 QueueHandle_t commandQueue;
@@ -85,9 +85,10 @@ void smoothServoControl(int endPos, int servoNo);
 const int leftCounter = 180;
 const int centre = 100;
 const int rightCounter = 10;
+const int onCounter = 30;
 
-const int flatSurface = 120;
-const int armUp = 150;
+const int flatSurface = 50;
+const int armUp = 180;
 
 void setup() {
   Serial.begin(115200);
@@ -105,7 +106,7 @@ void setup() {
     Serial.println("Connecting to ESP32 AP...");
   }
   Serial.println("Connected to ESP32 AP");
-  armServo.write(120);
+  armServo.write(50);
   turnServo.write(100);
 
   // Create FreeRTOS queue
@@ -238,24 +239,27 @@ void ExecuteTasks(void *pvParameters) {
   */
   while (doBurger) {
     // Execute tasks 0 to 16
-    for (int i = 1; i < 5; i++) {
+    for (int i = 1; i < 12; i++) {
       switch (i) {
         case 0: burgerTask0(); break;
         case 1: burgerTask1(); break;
         case 2: burgerTask2(); break;
         case 3: burgerTask3(); break;
-        case 4:{
-          burgerTask4(); 
-          vTaskDelete(NULL);
-          break;
-        } 
+        case 4: burgerTask4(); break;
         case 5: burgerTask5(); break;
         case 6: burgerTask6(); break;
         case 7: burgerTask7(); break;
         case 8: burgerTask8(); break;
         case 9: burgerTask9(); break;
-        case 10: burgerTask10(); break;
-        case 11: burgerTask11(); break;
+        case 10: {
+          burgerTask10(); 
+          break;
+        }
+        case 11: {
+          burgerTask11();
+          vTaskDelete(NULL);
+           break;
+        } 
         case 12: burgerTask12(); break;
         case 13: burgerTask13(); break;
         case 14: {
@@ -307,61 +311,84 @@ void burgerTask0() {
 void burgerTask1() { 
   Serial.println("Executing burger task 1"); 
   performTask(1);
-  delay(1000);
+  
 }
 
 void burgerTask2() { 
   Serial.println("Executing burger task 2"); 
+  smoothServoControl(onCounter, 1);
   controlSpatula(1);
-  delay(1000);
+  smoothServoControl(flatSurface, 1);
+  smoothServoControl(centre, 2);
+  
+ 
 }
 
 void burgerTask3() { 
   Serial.println("Executing burger task 3");
-  smoothServoControl(centre, 2);
-  controlSpatula(2); 
-  delay(1000);
+  performTask(2);
+  
 }
 
 void burgerTask4() { 
   Serial.println("Executing burger task 4"); 
-  performTask(2);
-  delay(1000);
+  
+  smoothServoControl(onCounter, 1);
+  controlSpatula(2);
+  smoothServoControl(flatSurface, 1);
+  smoothServoControl(centre, 2);
+
 }
 
 void burgerTask5() { 
   Serial.println("Executing burger task 5"); 
-  delay(1000);
+  performTask(3);
+ 
 }
 
 void burgerTask6() { 
   Serial.println("Executing burger task 6"); 
-  delay(1000);
+  controlSpatula(2);
+  smoothServoControl(onCounter, 1);
+  controlSpatula(1);
+  smoothServoControl(flatSurface, 1);
+  smoothServoControl(centre, 2);
+  
 }
 
 void burgerTask7() { 
   Serial.println("Executing burger task 7"); 
-  delay(1000);
+  performTask(4);
+  
 }
 
 void burgerTask8() { 
   Serial.println("Executing burger task 8"); 
-  delay(1000);
+  controlSpatula(2);
+  smoothServoControl(onCounter,1);
+  controlSpatula(1);
+  smoothServoControl(flatSurface, 1);
+  smoothServoControl(centre, 2);
+  
 }
 
 void burgerTask9() { 
   Serial.println("Executing burger task 9"); 
-  delay(1000);
+  performTask(5);
+ 
 }
 
 void burgerTask10() { 
   Serial.println("Executing burger task 10"); 
-  delay(1000);
+  controlSpatula(2);
+  smoothServoControl(onCounter, 1);
+  
 }
 
 void burgerTask11() { 
   Serial.println("Executing burger task 11"); 
-  delay(1000);
+  performTask(6);
+  
 }
 
 void burgerTask12() { 
@@ -517,15 +544,46 @@ void performTask(int taskNo) {
   int turnAngle;
   switch (taskNo)
   {
-  case 1:
-    armAngle  = 120;
-    turnAngle = 180;
+  case 1: {
+    armAngle  = flatSurface;
+    turnAngle = leftCounter;
     break;
+    }
   
-  case 2:
-    armAngle = 120;
-    turnAngle = 100;
+  case 2: {
+    armAngle = flatSurface;
+    turnAngle = rightCounter;
     break;
+  }
+  
+  case 3: {
+    armAngle = flatSurface;
+    turnAngle = leftCounter;
+    break;
+  }
+
+  case 4: {
+    armAngle = flatSurface;
+    turnAngle = rightCounter;
+    break;
+  }
+
+  case 5: {
+    armAngle = flatSurface;
+    turnAngle = leftCounter;
+    break;
+  }
+
+  case 6: {
+    armAngle = flatSurface;
+    turnAngle = rightCounter;
+    break;
+  }
+
+  case 7:{
+    armAngle = flatSurface;
+    turnAngle = centre;
+  }
 
   default:
     break;
