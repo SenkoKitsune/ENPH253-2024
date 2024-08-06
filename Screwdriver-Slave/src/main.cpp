@@ -58,6 +58,8 @@ const int R2 = 3;
 //Constants for line detection
 const int OPTICAL_SENSOR_THRESHOLD = 500;
 
+const centreTime = 500;
+
 // PID control constants
 float Kp = 0;
 float Ki = 0;
@@ -476,16 +478,23 @@ void countRotation(void *pvParameters){
 }
 
 void centreRobot(bool isForwardDir){
+  long time = millis();
   readSideSensors(isForwardDir);
   if(isForwardDir){
     if(backLeftDetected){
       while(backLeftDetected){
+        if(millis() - time < centreTime){
+          break;
+        }
         readSideSensors(isForwardDir);
         followLine(1023, !isForwardDir);
       }
     }
     else if(frontLeftDetected){
       while (frontLeftDetected){
+        if(millis() - time < centreTime){
+          break;
+        }
         readSideSensors(isForwardDir);
         
         followLine(1023, isForwardDir);
@@ -495,12 +504,18 @@ void centreRobot(bool isForwardDir){
   else{
     if(backLeftDetected){
       while(backLeftDetected){
+        if(millis() - time < centreTime){
+          break;
+        }
         readSideSensors(isForwardDir);
         followLine(1023, isForwardDir);
       }
     }
     else if(frontLeftDetected){
       while(frontLeftDetected){
+        if(millis() - time < centreTime){
+          break;
+        }
         readSideSensors(isForwardDir);
         followLine(1023, !isForwardDir);
       }

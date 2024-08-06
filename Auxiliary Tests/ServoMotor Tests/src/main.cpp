@@ -7,8 +7,8 @@
 #define stepPin 2
 #define motorInterfaceType 1
 
-#define armServoPin 27
-#define turnServoPin 33
+#define armServoPin 32
+#define turnServoPin 26
 
 // Create an instance of the AccelStepper class
 AccelStepper stepper = AccelStepper(motorInterfaceType, stepPin, dirPin);
@@ -18,8 +18,8 @@ Servo turnServo;
 // Define initial speed and delay parameters for smooth servo control
 int minDelay = 30;      // Minimum delay in milliseconds
 int maxDelay = 50;     // Maximum delay in milliseconds
-int currentArmServoPos = 130; // Start from the middle position
-int currentTurnServoPos = 100;
+int currentArmServoPos = 0; // Start from the middle position
+int currentTurnServoPos = 90;
 
 // Revised cubic easing function with slower easing-in
 float easeInOutCubicSlow(float t) {
@@ -94,8 +94,8 @@ void setup() {
   // Attach the servo to the specified pin with pulse widths for MG996R
   armServo.attach(armServoPin, 500, 2500); // Min pulse width, Max pulse width
   turnServo.attach(turnServoPin, 500, 2500);
-  armServo.write(30);
-  turnServo.write(100);
+  armServo.write(currentArmServoPos);
+  turnServo.write(currentTurnServoPos);
 }
 
 void loop() {

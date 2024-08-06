@@ -8,7 +8,7 @@
 const char* ssid = "U235-Control";  // Replace with your desired SSID
 const char* password = "SkibidiToilet";  // Replace with your desired password
 
-bool doBurgers = false;
+bool doBurgers = true;
 bool ready = false;
 bool proceed = false;
 bool interProceed = false;
@@ -115,8 +115,8 @@ void TCP_Server(void* pvParameters) {
       Serial.printf("Received instruction from client: %s\n", instruction);
 
       // Check for specific instructions and respond accordingly
-      if (doBurgers && strcmp(instruction, "Reached Task 14") == 0) {
-        const char* response = "Execute Task 15";
+      if (doBurgers && strcmp(instruction, "Reached Task 12") == 0) {
+        const char* response = "Execute Task 13";
         while (!ready) {
           delay(100);
         }
@@ -124,13 +124,14 @@ void TCP_Server(void* pvParameters) {
         Serial.printf("Sent response: %s\n", response);
       }
 
-      if (doBurgers && strcmp(instruction, "Finished Task 15") == 0) {
+      if (doBurgers && strcmp(instruction, "Finished Task 13") == 0) {
         const char* response = "Action Received";
         proceed = true;
         client->write(response, strlen(response));
         Serial.printf("Sent response: %s\n", response);
       }
 
+      /*
       if (!doBurgers && strcmp(instruction, "Reached Fries Task 2") == 0) {
         const char* response = "Execute Task 3";
         while (!ready) {
@@ -146,6 +147,7 @@ void TCP_Server(void* pvParameters) {
         client->write(response, strlen(response));
         Serial.printf("Sent response: %s\n", response);
       }
+      */
     });
 
     client->onDisconnect([](void* arg, AsyncClient* c) {
@@ -165,6 +167,7 @@ void TCP_Server(void* pvParameters) {
 }
 
 void ExecuteTasks(void *pvParameters) {
+  /*
   if (!doBurgers) {
     for (int i = 1; i < 7; i++) {
       switch (i) {
@@ -195,7 +198,7 @@ void ExecuteTasks(void *pvParameters) {
     }
     doBurgers = true;
   }
-
+  */
   while (doBurgers) {
     // Execute tasks 0 to 16
     for (int i = 1; i < 7; i++) {
@@ -256,9 +259,7 @@ void onClientConnect(void* arg, AsyncClient* newClient) {
 
 void burgerTask1() { 
   Serial.println("Executing burger task 1");
-  //Wait for slave chip to confirm recieved action
-  delay(1000);
-  //Wait for slave chip to confirm finished action
+  
   Serial.println("Completed burger task 1");
 }
 

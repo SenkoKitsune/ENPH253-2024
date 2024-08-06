@@ -65,8 +65,8 @@ const int R2 = 3;
 //Constants for line detection
 const int OPTICAL_SENSOR_THRESHOLD = 800;
 
-const int slowSpeed = 1250;
-int stoppingTime = 80;
+int slowSpeed = 1300;
+int regSpeed = 2439;
 
 // PID control constants
 float Kp = 0;
@@ -224,30 +224,34 @@ void executeTask(void *pvParameters){
     }
 
     case 5: {
+      slowSpeed += 50;
       bool complete = goToState(12, 1, false, false);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
         ready = true;
         move = true;
+        slowSpeed -= 50;
       }
       break;
     }
 
     case 6: {
-      stoppingTime = 130;
+      slowSpeed = 1000;
+      regSpeed -= 200;
       bool complete = goToState(12, 2, true, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
         ready = true;
         move = true;
-        stoppingTime = 100;
+        slowSpeed = 1250;
       }
       break;
     }
 
     case 7: {
+      slowSpeed = 1100;
       bool complete = goToState(12, 3, false, false);
       if(complete){
         Serial.print("Complete round: ");
@@ -255,6 +259,8 @@ void executeTask(void *pvParameters){
         ready = true;
         move = true;
         firstStation = 0;
+        slowSpeed = 1250;
+        regSpeed += 200;
       }
       break;
     }
@@ -293,13 +299,13 @@ bool goToState(int rotations, int lines, bool isForwardDir, bool isRightStop){
 
     if(!almostThere && currentRotationCount < rotations){
       float speedReduction = (float) currentLineCount;
-      if(speedReduction == 0){
+      if(speedReduction == 0 || speedReduction == 1){
         speedReduction = 1;
       }
       else{
-        speedReduction += 0.5;
+        speedReduction -= 0.4;
       }
-      int speed = (int) (2459 / speedReduction);
+      int speed = (int) (regSpeed / speedReduction);
       followLine(speed, isForwardDir);
     }
 
@@ -309,15 +315,15 @@ bool goToState(int rotations, int lines, bool isForwardDir, bool isRightStop){
         if(frontLeftDetected && !isRightStop){
           forwardDetected = true;
           for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed, !isForwardDir);
-              delay(11);
+              followLine(slowSpeed - 300, !isForwardDir);
+              delay(10);
             }
         }
         else if(frontRightDetected && isRightStop){
           forwardDetected = true;
           for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed, !isForwardDir);
-              delay(11);
+              followLine(slowSpeed - 300, !isForwardDir);
+              delay(10);
             }
         }
 
@@ -329,7 +335,7 @@ bool goToState(int rotations, int lines, bool isForwardDir, bool isRightStop){
             int stopSpeed = 4095;
             for(int i = 0; i <= 7; i++){
               followLine(stopSpeed, !isForwardDir);
-              stopSpeed -= 120;
+              stopSpeed -= 140;
               delay(11);
             }
           }
@@ -340,15 +346,15 @@ bool goToState(int rotations, int lines, bool isForwardDir, bool isRightStop){
         if(backLeftDetected && !isRightStop){
           forwardDetected = true;
           for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed, !isForwardDir);
-              delay(11);
+              followLine(slowSpeed - 300, !isForwardDir);
+              delay(10);
             }
         }
         else if(backRightDetected && isRightStop){
           forwardDetected = true;
           for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed, !isForwardDir);
-              delay(11);
+              followLine(slowSpeed - 300, !isForwardDir);
+              delay(10);
             }
         }
 
@@ -389,9 +395,9 @@ void followLine(int maxSpeed, bool isForwardDir) {
   else {
     analogLeftValue = analogRead(lineBackLeft);
     analogRightValue = analogRead(lineBackRight);
-    Kp = 0.75;
+    Kp = 0.73;
     Ki = 0;
-    Kd = 0.3;
+    Kd = 0.35;
   }
 
 
@@ -565,24 +571,34 @@ void centreRobot(bool isForwardDir) {
   delay(500); // Allow time for the robot to come to a complete stop
 
   readSideSensors(isForwardDir);
-  
+  long time = millis();
   if (isForwardDir) {
     while (backLeftDetected || backRightDetected || frontLeftDetected || frontRightDetected) {
+      if(millis() - time > 200){
+        break;
+      }
       readSideSensors(isForwardDir);
       if (backLeftDetected || backRightDetected) {
-        followLine(1400, !isForwardDir);
-      } else if (frontLeftDetected || frontRightDetected) {
-        followLine(1400, isForwardDir);
+        followLine(1300, false);
+      } 
+      else if (frontLeftDetected || frontRightDetected) {
+        followLine(1300, true);
       }
       delay(10);  // Add a small delay to avoid overshooting
     }
-  } else {
+  } 
+  
+  else {
     while (backLeftDetected || backRightDetected || frontLeftDetected || frontRightDetected) {
+      if(millis() - time > 200){
+        break;
+      }
       readSideSensors(isForwardDir);
       if (backLeftDetected) {
-        followLine(1500, isForwardDir);
-      } else if (frontLeftDetected) {
-        followLine(1500, !isForwardDir);
+        followLine(1400, false);
+      } 
+      else if (frontLeftDetected) {
+        followLine(1400, true);
       }
       delay(10);  // Add a small delay to avoid overshooting
     }

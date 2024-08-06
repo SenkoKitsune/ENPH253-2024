@@ -31,10 +31,10 @@ bool proceed = false;
 // Define initial speed and delay parameters for smooth servo control
 const int minDelay = 30;      // Minimum delay in milliseconds
 const int maxDelay = 50;     // Maximum delay in milliseconds
-int currentArmServoPos = 50; // Start from the middle position
+int currentArmServoPos = 40; // Start from the middle position
 int currentTurnServoPos = 100;
 
-const int spatulaTime = 900;
+const int spatulaTime = 1100;
 
 AsyncClient client;
 QueueHandle_t commandQueue;
@@ -44,7 +44,7 @@ Servo turnServo;
 // Forward declaration of tasks
 void TCP_Client(void *pvParameters);
 void ExecuteTasks(void *pvParameters);
-void burgerTask0();
+
 void burgerTask1();
 void burgerTask2();
 void burgerTask3();
@@ -58,9 +58,7 @@ void burgerTask10();
 void burgerTask11();
 void burgerTask12();
 void burgerTask13();
-void burgerTask14();
-void burgerTask15();
-void burgerTask16();
+
 void friesTask0();
 void friesTask1();
 void friesTask2();
@@ -87,7 +85,7 @@ const int centre = 100;
 const int rightCounter = 10;
 const int onCounter = 30;
 
-const int flatSurface = 50;
+const int flatSurface = 43;
 const int armUp = 180;
 
 void setup() {
@@ -106,8 +104,8 @@ void setup() {
     Serial.println("Connecting to ESP32 AP...");
   }
   Serial.println("Connected to ESP32 AP");
-  armServo.write(50);
-  turnServo.write(100);
+  armServo.write(currentArmServoPos);
+  turnServo.write(currentTurnServoPos);
 
   // Create FreeRTOS queue
   commandQueue = xQueueCreate(20, sizeof(char[70]));
@@ -176,12 +174,12 @@ void TCP_Client(void *pvParameters) {
  * It is also responsible for the initial sending of information when the robot has finished up to the hand-off step each loop.
  */
 void ExecuteTasks(void *pvParameters) {
-  delay(1000); //change but allows bot to properly setup
 
 /*
  * The fries loop. It will do its own thing until the fries hand-off step, which will then require the two robots to communicate
  * with each other. Afterwards, the doBurgers boolean will be set to true and the doFries loop will be ignored.
  */
+/*
   if(!doBurger){
     for(int i = 0; i < 6; i++){
       switch(i) {
@@ -229,8 +227,8 @@ void ExecuteTasks(void *pvParameters) {
     }
     doBurger = true;
     proceed = false;
-
   }
+  */
 
   /*
    * The doBurger loop. After finishing the fries step, the robot will repeat the burger loop until we run out of time
@@ -238,10 +236,9 @@ void ExecuteTasks(void *pvParameters) {
    * the Screwdriver control ESP-32.
   */
   while (doBurger) {
-    // Execute tasks 0 to 16
-    for (int i = 1; i < 12; i++) {
+    // Execute tasks 0 to 13
+    for (int i = 1; i < 13; i++) {
       switch (i) {
-        case 0: burgerTask0(); break;
         case 1: burgerTask1(); break;
         case 2: burgerTask2(); break;
         case 3: burgerTask3(); break;
@@ -251,39 +248,31 @@ void ExecuteTasks(void *pvParameters) {
         case 7: burgerTask7(); break;
         case 8: burgerTask8(); break;
         case 9: burgerTask9(); break;
-        case 10: {
-          burgerTask10(); 
-          break;
-        }
-        case 11: {
-          burgerTask11();
-          vTaskDelete(NULL);
-           break;
-        } 
-        case 12: burgerTask12(); break;
-        case 13: burgerTask13(); break;
-        case 14: {
-          burgerTask14();
-          // After task 14, send message to server and wait for response
+        case 10: burgerTask10(); break;
+        case 11: burgerTask11(); break; 
+        case 12: {
+          burgerTask12();
+          // After task 12, send message to server and wait for response
           // Message to server acts like a "I am here"
           // Response from server acts like "I have arrived"
-          const char* instruction = "Reached Task 14";
+          const char* instruction = "Reached Task 12";
           client.write(instruction, strlen(instruction));
           Serial.printf("Sent instruction: %s\n", instruction);
 
-          // Wait for the command to execute task 15
+          // Wait for the command to execute task 13
           char command[50];
           while (true) {
             if (xQueueReceive(commandQueue, &command, portMAX_DELAY)) {
-              if (strcmp(command, "Execute Task 15") == 0) {
+              if (strcmp(command, "Execute Task 13") == 0) {
                 break;
               }
             }
             vTaskDelay(100 / portTICK_PERIOD_MS); // Adjust the delay as needed
           }
-          // Execute task 15
-          burgerTask15();
-          instruction = "Finished Task 15";
+
+          // Execute task 13
+          burgerTask13();
+          instruction = "Finished Task 13";
           client.write(instruction, strlen(instruction));
           Serial.printf("Sent instruction: %s\n", instruction);
 
@@ -292,23 +281,17 @@ void ExecuteTasks(void *pvParameters) {
             delay(100);
           }
           delay(100);
+          vTaskDelete(NULL);
           break;
-        }
-        case 15: burgerTask16(); break;
+        }  
       }
     }
   }
 }
 
-// burger tasks from task 0 to task 15
-void burgerTask0() { 
-  
-  Serial.println("Executing burger task 0");
-
-  delay(1000);
-}
 
 void burgerTask1() { 
+  //Goes to patty
   Serial.println("Executing burger task 1"); 
   performTask(1);
   
@@ -316,104 +299,102 @@ void burgerTask1() {
 
 void burgerTask2() { 
   Serial.println("Executing burger task 2"); 
+  //picks up patty
   smoothServoControl(onCounter, 1);
   controlSpatula(1);
   smoothServoControl(flatSurface, 1);
-  smoothServoControl(centre, 2);
+  //smoothServoControl(centre, 2);
   
  
 }
 
 void burgerTask3() { 
   Serial.println("Executing burger task 3");
+  //moves to cooktop
   performTask(2);
   
 }
 
 void burgerTask4() { 
   Serial.println("Executing burger task 4"); 
-  
+  //drop patty on cooktop
   smoothServoControl(onCounter, 1);
   controlSpatula(2);
   smoothServoControl(flatSurface, 1);
-  smoothServoControl(centre, 2);
+  //smoothServoControl(centre, 2);
 
 }
 
 void burgerTask5() { 
   Serial.println("Executing burger task 5"); 
+  //move to top bun
   performTask(3);
  
 }
 
 void burgerTask6() { 
   Serial.println("Executing burger task 6"); 
+  //pick up top bun
   controlSpatula(2);
   smoothServoControl(onCounter, 1);
   controlSpatula(1);
   smoothServoControl(flatSurface, 1);
-  smoothServoControl(centre, 2);
-  
+  //smoothServoControl(centre, 2);
 }
 
 void burgerTask7() { 
   Serial.println("Executing burger task 7"); 
+  //go back to patty
   performTask(4);
   
 }
 
 void burgerTask8() { 
   Serial.println("Executing burger task 8"); 
+  //pick up patty
   controlSpatula(2);
   smoothServoControl(onCounter,1);
   controlSpatula(1);
   smoothServoControl(flatSurface, 1);
-  smoothServoControl(centre, 2);
-  
+  //smoothServoControl(centre, 2);
 }
 
 void burgerTask9() { 
   Serial.println("Executing burger task 9"); 
+  //go back to bot bun
   performTask(5);
  
 }
 
 void burgerTask10() { 
   Serial.println("Executing burger task 10"); 
+  //pick up bot bun
   controlSpatula(2);
   smoothServoControl(onCounter, 1);
+  controlSpatula(1);
+  smoothServoControl(flatSurface, 1);
   
 }
 
 void burgerTask11() { 
   Serial.println("Executing burger task 11"); 
+  //go to serving
   performTask(6);
   
 }
 
 void burgerTask12() { 
   Serial.println("Executing burger task 12"); 
-  delay(1000);
+  //drop on plate
+  smoothServoControl(onCounter, 1);
+  controlSpatula(2);
+  smoothServoControl(130,1);
 }
 
 void burgerTask13() { 
   Serial.println("Executing burger task 13"); 
-  delay(1000);
-}
-
-void burgerTask14() { 
-  Serial.println("Executing burger task 14"); 
-  delay(1000);
-}
-
-void burgerTask15() { 
-  Serial.println("Executing burger task 15"); 
-  delay(1000);
-}
-
-void burgerTask16() { 
-  Serial.println("Executing burger task 16"); 
-  delay(1000);
+  //reset to patty
+  performTask(7);
 }
 
 //fries tasks from task 0 to task 6
@@ -569,13 +550,13 @@ void performTask(int taskNo) {
   }
 
   case 5: {
-    armAngle = flatSurface;
+    armAngle = flatSurface + 5;
     turnAngle = leftCounter;
     break;
   }
 
   case 6: {
-    armAngle = flatSurface;
+    armAngle = flatSurface + 30;
     turnAngle = rightCounter;
     break;
   }
