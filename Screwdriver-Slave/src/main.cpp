@@ -3,10 +3,10 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#define lineFrontLeft 39
-#define lineFrontRight 36
-#define lineBackLeft 32
-#define lineBackRight 33
+#define lineFrontLeft 38
+#define lineFrontRight 37
+#define lineBackLeft 33
+#define lineBackRight 32
 
 #define frontLeftSensor 34
 #define backLeftSensor 35
@@ -40,7 +40,7 @@ bool forwardDetected = false;
 int currentRotationCount = 0;
 
 // PWM configuration
-const int pwmFrequency = 100; // PWM frequency in Hz
+const int pwmFrequency = 250; // PWM frequency in Hz
 const int pwmResolution = 12; // PWM resolution (1-16 bits)
 
 //Motor pin declaration
@@ -60,9 +60,9 @@ const int OPTICAL_SENSOR_THRESHOLD = 500;
 
 //Navigation variables
 int slowSpeed = 1300;
-int regSpeed = 2439;
+int regSpeed = 1700;
 int centreTime = 200;
-int firstStation = 3;
+int firstStation = 4;
 
 // PID control constants
 float Kp = 0;
@@ -128,7 +128,12 @@ void setup(){
 }
 
 void loop(){
+<<<<<<< HEAD
   goToState(4,true);
+=======
+  state = 2;
+  executeTask(NULL);
+>>>>>>> 580b002bbe67cb16678a6a044e048e57a341acd7
   vTaskDelete(NULL);
 }
 
@@ -206,16 +211,18 @@ void executeTask(void *pvParameters){
         Serial.println(state);
         ready = true;
         move = true;
+        firstStation = 2;
       }
       break;
     }
     
     case 2: {
-      for(int i = 0; i < 15; i++){
+      for(int i = 0; i < 150; i++){
+        Serial.println(i);
         followLine(regSpeed, false);
         delay(10);
       }
-      firstStation = 2;
+      followLine(0, false);
       break;
     }
 
@@ -340,17 +347,17 @@ void followLine(int maxSpeed, bool isForwardDir) {
   if (isForwardDir) {
     analogLeftValue = analogRead(lineFrontLeft);
     analogRightValue = analogRead(lineFrontRight);
-    Kp = 0.6;
-    Ki = 0.25;
-    Kd = 0.15;
+    Kp = 0.8;
+    Ki = 0.5;
+    Kd = 0.3;
   } 
   
   else {
     analogLeftValue = analogRead(lineBackLeft);
     analogRightValue = analogRead(lineBackRight);
-    Kp = 0.73;
-    Ki = 0;
-    Kd = 0.35;
+    Kp = 1.1;
+    Ki = 0.15;
+    Kd = 0.5;
   }
 
   int error = analogLeftValue - analogRightValue;
@@ -376,27 +383,29 @@ void followLine(int maxSpeed, bool isForwardDir) {
   rightValue = constrain(rightValue, 0, maxSpeed);
 
   // Debugging output values
-  {
   /*
   Serial.print("Analog Left: ");
-  Serial.print(analogLeftValue);
-  Serial.print(" | Analog Right: ");
-  Serial.print(analogRightValue);
-  Serial.print(" | Error: ");
-  Serial.print(error);
-  Serial.print(" | Integral: ");
-  Serial.print(integral);
-  Serial.print(" | Derivative: ");
-  Serial.print(derivative);
-  Serial.print(" | Output: ");
-  Serial.print(output);
-  Serial.print(" | Left Value: ");
-  Serial.print(leftValue);
-  Serial.print(" | Right Value: ");
+   Serial.print(analogLeftValue);
+   Serial.print(" | Analog Right: ");
+   Serial.print(analogRightValue);
+   Serial.print(" | Error: ");
+   Serial.print(error);
+   Serial.print(" | Integral: ");
+   Serial.print(integral);
+   Serial.print(" | Derivative: ");
+   Serial.print(derivative);
+   Serial.print(" | Output: ");
+   Serial.print(output);
+   Serial.print(" | Left Value: ");
+   Serial.print(leftValue);
+   Serial.print(" | Right Value: ");
+   Serial.println(rightValue);
+   Serial.print("Left Speed: ");
+   Serial.print(leftValue);
+   Serial.print(" | Right Speed: ");
   Serial.println(rightValue);
+  delay(100);
   */
-  }
-
   motorPower(isForwardDir, leftValue, rightValue);
 }
 
@@ -445,7 +454,8 @@ bool countLine(int lines, bool isForwardDir){
   Serial.print("Back Left Detected: ");
   Serial.println(backLeftDetected);
   */
-  //Serial.println(currentLineCount);
+  Serial.println(currentLineCount);
+
   if(currentLineCount == lines){
     return true;
   }
@@ -470,12 +480,14 @@ bool countLine(int lines, bool isForwardDir){
   else{
     if(backLeftDetected){
       if(!forwardDetected){
+        Serial.print("Changed ForwardDetected");
         forwardDetected = true;
       }
     }
 
     if(forwardDetected){
       if(frontLeftDetected){
+        Serial.print("frontLeftDetected");
         currentLineCount++;
         forwardDetected = false;
       }
@@ -500,21 +512,21 @@ void readSideSensors(bool isForwardDir){
 
   if(frontLeftValue > OPTICAL_SENSOR_THRESHOLD){
     frontLeftDetected = true;
-    //Serial.println("Front Left Detected: True");
+    // Serial.println("Front Left Detected: True");
   }
   else{
     frontLeftDetected = false;
-    //Serial.println("Front Left Detected: False");
+    // Serial.println("Front Left Detected: False");
   }
   
 
   if(backLeftValue > OPTICAL_SENSOR_THRESHOLD){
     backLeftDetected = true;
-    //Serial.println("Back Left Detected: True");
+    // Serial.println("Back Left Detected: True");
   }
   else{
     backLeftDetected = false;
-    //Serial.println("Back Left Detected: False");
+    // Serial.println("Back Left Detected: False");
   }
 }
 
