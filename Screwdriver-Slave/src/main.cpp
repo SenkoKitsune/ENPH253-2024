@@ -3,10 +3,10 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-#define lineFrontLeft 39
-#define lineFrontRight 36
-#define lineBackLeft 32
-#define lineBackRight 33
+#define lineFrontLeft 38
+#define lineFrontRight 37
+#define lineBackLeft 33
+#define lineBackRight 32
 
 #define frontLeftSensor 34
 #define backLeftSensor 35
@@ -40,7 +40,7 @@ bool forwardDetected = false;
 int currentRotationCount = 0;
 
 // PWM configuration
-const int pwmFrequency = 100; // PWM frequency in Hz
+const int pwmFrequency = 250; // PWM frequency in Hz
 const int pwmResolution = 12; // PWM resolution (1-16 bits)
 
 //Motor pin declaration
@@ -128,15 +128,7 @@ void setup(){
 }
 
 void loop(){
-  state = 1;
-  executeTask(NULL);
-  delay(1000);
-  state = 2;
-  executeTask(NULL);
-  delay(1000);
-  state = 1;
-  executeTask(NULL);
-  vTaskDelete(NULL);
+  followLine(1750, false);
 }
 
 /**
@@ -326,7 +318,7 @@ bool goToState(int lines, bool isForwardDir){
     }
   }
   Serial.println("Centering Robot...");
-  centreRobot(isForwardDir);
+  // centreRobot(isForwardDir);
   return true;
 }
 
@@ -355,9 +347,9 @@ void followLine(int maxSpeed, bool isForwardDir) {
   else {
     analogLeftValue = analogRead(lineBackLeft);
     analogRightValue = analogRead(lineBackRight);
-    Kp = 0.73;
+    Kp = 1.2;
     Ki = 0;
-    Kd = 0.35;
+    Kd = 0.3;
   }
 
   int error = analogLeftValue - analogRightValue;
@@ -384,7 +376,6 @@ void followLine(int maxSpeed, bool isForwardDir) {
 
   // Debugging output values
   {
-  /*
   Serial.print("Analog Left: ");
   Serial.print(analogLeftValue);
   Serial.print(" | Analog Right: ");
@@ -401,7 +392,7 @@ void followLine(int maxSpeed, bool isForwardDir) {
   Serial.print(leftValue);
   Serial.print(" | Right Value: ");
   Serial.println(rightValue);
-  */
+  
   }
 
   motorPower(isForwardDir, leftValue, rightValue);
