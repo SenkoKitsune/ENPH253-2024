@@ -60,10 +60,13 @@ const int R2 = 3;
 const int OPTICAL_SENSOR_THRESHOLD = 800;
 
 //Navigation variables
-int slowSpeed = 1300;
-int regSpeed = 2439;
+int slowSpeed = 1350;
+int regSpeed = 2539;
 int centreTime = 200;
 int firstStation = 1;
+int stopSpeed = 4095;
+int stopCount = 8;
+int stopDelay = 10;
 
 // PID control variables
 float Kp = 0;
@@ -77,7 +80,7 @@ void executeTask(void *pvParameters);
 void wireCommunication(void *pvParameters);
 
 
-bool goToState(int rotations, int lines, bool isForwardDir, bool isRightStop);
+bool goToState(int lines, bool isForwardDir, bool isRightStop, bool doTwoStepSlow);
 void followLine(int maxSpeed, bool isForwardDir);
 bool countLine(int lines, bool isForwardDir, bool isRight);
 void readSideSensors(bool isForwardDir);
@@ -195,7 +198,11 @@ void executeTask(void *pvParameters){
   delay(1000);
   switch(state){
     case 1: {
-      bool complete = goToState(firstStation, true, false);
+      stopSpeed = 4095;
+      stopCount = 8;
+      stopDelay = 10;
+      slowSpeed = 1600;
+      bool complete = goToState(firstStation, true, false, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
@@ -206,7 +213,10 @@ void executeTask(void *pvParameters){
     }
     
     case 2: {
-      bool complete = goToState(2,true, true);
+      slowSpeed = 1350;
+      stopCount = 9;
+      stopDelay = 9;
+      bool complete = goToState(2,true, true, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
@@ -217,18 +227,24 @@ void executeTask(void *pvParameters){
     }
 
     case 3: {
-      bool complete = goToState(1, false, false);
+      slowSpeed += 50;
+      stopCount = 12;
+      stopDelay = 7;
+      bool complete = goToState(1, false, false, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
         ready = true;
         move = true;
+        slowSpeed -= 50;
       }
       break;
     }
 
     case 4: {
-      bool complete = goToState(1, true, true);
+      stopCount = 12;
+      stopDelay = 8;
+      bool complete = goToState(1, true, true, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
@@ -240,7 +256,9 @@ void executeTask(void *pvParameters){
 
     case 5: {
       slowSpeed += 50;
-      bool complete = goToState(1, false, false);
+      stopCount = 12;
+      stopDelay = 7;
+      bool complete = goToState(1, false, false, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
@@ -252,30 +270,34 @@ void executeTask(void *pvParameters){
     }
 
     case 6: {
-      slowSpeed = 1000;
+      slowSpeed = 1250;
       regSpeed -= 200;
-      bool complete = goToState(2, true, true);
+      stopSpeed = 3700;
+      stopCount = 10;
+      stopDelay = 10;
+      bool complete = goToState(2, true, true, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
         ready = true;
         move = true;
-        slowSpeed = 1250;
       }
       break;
     }
 
     case 7: {
-      slowSpeed = 1100;
-      bool complete = goToState(3, false, false);
+      stopCount = 8;
+      stopDelay = 10;
+      bool complete = goToState(3, false, false, true);
+      regSpeed -= 100;
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
         ready = true;
         move = true;
         firstStation = 0;
-        slowSpeed = 1250;
-        regSpeed += 200;
+        slowSpeed = 1350;
+        regSpeed += 300;
       }
       break;
     }
@@ -297,99 +319,85 @@ void executeTask(void *pvParameters){
  * @param lines The target number of lines to go
  * @param isForwardDir Direction of movement (`true` for forward, `false` for backward).
  * @param isRightStop Flag indicating the side the robot stops on (`true` for right, `false` for left).
+ * @param doTwoStepSlow Flag indicating if a two-step slowdown should be performed.
  *
  * @return `true` if the movement and stopping process was completed successfully.
  */
-bool goToState(int lines, bool isForwardDir, bool isRightStop){
+bool goToState(int lines, bool isForwardDir, bool isRightStop, bool doTwoStepSlow) {
   Serial.println("Moving...");
   currentLineCount = 0;
   almostThere = false;
 
-  while(move){
-  Serial.println("In Moving...");
-    
+  while (move) {
+    Serial.println("In Moving...");
+
     bool lineClose = countLine(lines - 1, isForwardDir, isRightStop);
-    if(lineClose){
+    if (lineClose) {
       almostThere = true;
     }
 
-    if(!almostThere){
-      float speedReduction = (float) currentLineCount;
-      if(speedReduction == 0 || speedReduction == 1){
+    if (!almostThere) {
+      float speedReduction = (float)currentLineCount;
+      if (speedReduction == 0 || speedReduction == 1) {
         speedReduction = 1;
-      }
-      else{
+      } else {
         speedReduction -= 0.4;
       }
-      int speed = (int) (regSpeed / speedReduction);
+      int speed = (int)(regSpeed / speedReduction);
       followLine(speed, isForwardDir);
-    }
-
-    else{
+    } else {
       readSideSensors(isForwardDir);
-      if(isForwardDir){
-        if(frontLeftDetected && !isRightStop){
+      if (isForwardDir) {
+        if ((frontLeftDetected && !isRightStop) || (frontRightDetected && isRightStop)) {
           forwardDetected = true;
-          for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed - 300, !isForwardDir);
+          if (doTwoStepSlow) {
+            for (int i = 0; i <= 2; i++) {
+              followLine(slowSpeed - 100, !isForwardDir);
               delay(10);
             }
-        }
-        else if(frontRightDetected && isRightStop){
-          forwardDetected = true;
-          for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed - 300, !isForwardDir);
-              delay(10);
-            }
+          }
         }
 
-        if(forwardDetected){
-          if(backLeftDetected || backRightDetected){
+        if (forwardDetected) {
+          if (backLeftDetected || backRightDetected) {
             move = false;
             Serial.println("Stopping");
             forwardDetected = false;
-            int stopSpeed = 4095;
-            for(int i = 0; i <= 7; i++){
+            for (int i = 0; i <= stopCount; i++) {
               followLine(stopSpeed, !isForwardDir);
-              stopSpeed -= 140;
-              delay(11);
+              delay(stopDelay);
+            }
+          }
+        }
+      } else {
+        if ((backLeftDetected && !isRightStop) || (backRightDetected && isRightStop)) {
+          forwardDetected = true;
+          if (doTwoStepSlow) {
+            for (int i = 0; i <= 2; i++) {
+              followLine(slowSpeed - 100, !isForwardDir);
+              delay(10);
+            }
+          }
+        }
+
+        if (forwardDetected) {
+          if (frontLeftDetected || frontRightDetected) {
+            move = false;
+            Serial.println("Stopping");
+            forwardDetected = false;
+            for (int i = 0; i <= stopCount; i++) {
+              followLine(stopSpeed, !isForwardDir);
+              delay(stopDelay);
             }
           }
         }
       }
 
-      else{
-        if(backLeftDetected && !isRightStop){
-          forwardDetected = true;
-          for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed - 300, !isForwardDir);
-              delay(10);
-            }
-        }
-        else if(backRightDetected && isRightStop){
-          forwardDetected = true;
-          for(int i = 0; i <= 2; i++){
-              followLine(slowSpeed - 300, !isForwardDir);
-              delay(10);
-            }
-        }
-
-        if(forwardDetected){
-          if(frontLeftDetected || frontRightDetected){
-            move = false;
-            Serial.println("Stopping");
-            forwardDetected = false;
-            int stopSpeed = 4095;
-            for(int i = 0; i <= 8; i++){
-              followLine(stopSpeed, !isForwardDir);
-              stopSpeed -= 100;
-              delay(11);
-            }
-          }
-        }
+      if (isForwardDir) {
+        followLine(slowSpeed, isForwardDir);
+      } else {
+        followLine(slowSpeed - 200, isForwardDir);
       }
-
-      followLine(slowSpeed, isForwardDir);
     }
   }
   Serial.println("Centering Robot...");
@@ -422,9 +430,9 @@ void followLine(int maxSpeed, bool isForwardDir) {
   else {
     analogLeftValue = analogRead(lineBackLeft);
     analogRightValue = analogRead(lineBackRight);
-    Kp = 0.73;
-    Ki = 0;
-    Kd = 0.35;
+    Kp = 0.75;
+    Ki = 0.05;
+    Kd = 0.4;
   }
 
   int error = analogLeftValue - analogRightValue;
@@ -612,42 +620,40 @@ bool countLine(int lines, bool isForwardDir, bool isRight) {
  */
 void centreRobot(bool isForwardDir) {
   Serial.println("Centering...");
-  // Stop the robot before centring
+  // Stop the robot before centering
   motorPower(isForwardDir, 0, 0);
   readSideSensors(isForwardDir);
 
-  if (isForwardDir) {
-    long time = millis();
-    while (backLeftDetected || backRightDetected || frontLeftDetected || frontRightDetected) {
-      if(millis() - time > centreTime){
-        break;
-      }
-      readSideSensors(isForwardDir);
-      if (backLeftDetected || backRightDetected) {
+  long time = millis();
+  while (true) {
+    if (millis() - time > centreTime) {
+      break;
+    }
+
+    readSideSensors(isForwardDir);
+
+    if (isForwardDir) {
+      // Move backward until the front sensors are detected
+      if (!frontLeftDetected && !frontRightDetected) {
         followLine(1300, false);
-      } 
-      else if (frontLeftDetected || frontRightDetected) {
+      } else if (frontLeftDetected || frontRightDetected) {
         followLine(1300, true);
       }
-      delay(10);  // Add a small delay to avoid overshooting
-    }
-  } 
-  
-  else {
-    long time = millis();
-    while (backLeftDetected || backRightDetected || frontLeftDetected || frontRightDetected) {
-      if(millis() - time > centreTime){
-        break;
+    } else {
+      // Move forward until the back sensors are detected
+      if (!backLeftDetected && !backRightDetected) {
+        followLine(1300, true);
+      } else if (backLeftDetected || backRightDetected) {
+        followLine(1300, false);
       }
-      readSideSensors(isForwardDir);
-      if (backLeftDetected) {
-        followLine(1400, false);
-      } 
-      else if (frontLeftDetected) {
-        followLine(1400, true);
-      }
-      delay(10);  // Add a small delay to avoid overshooting
     }
+
+    // Stop centering when both front and back detections are false
+    if ((!backLeftDetected && !backRightDetected && !frontLeftDetected && !frontRightDetected)) {
+      break;
+    }
+
+    delay(10);  // Add a small delay to avoid overshooting
   }
 
   motorPower(isForwardDir, 0, 0);

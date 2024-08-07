@@ -128,14 +128,7 @@ void setup(){
 }
 
 void loop(){
-  state = 1;
-  executeTask(NULL);
-  delay(1000);
-  state = 2;
-  executeTask(NULL);
-  delay(1000);
-  state = 1;
-  executeTask(NULL);
+  goToState(4,true);
   vTaskDelete(NULL);
 }
 
