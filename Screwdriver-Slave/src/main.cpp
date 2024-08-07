@@ -46,8 +46,8 @@ const int pwmResolution = 12; // PWM resolution (1-16 bits)
 //Motor pin declaration
 const int motorL1 = 15;
 const int motorL2 = 13;
-const int motorR1 = 2;
-const int motorR2 = 4;
+const int motorR1 = 4;
+const int motorR2 = 2;
 
 //Assigning each motor lead individual PWM channels
 const int L1 = 0;
@@ -58,7 +58,11 @@ const int R2 = 3;
 //Constants for line detection
 const int OPTICAL_SENSOR_THRESHOLD = 500;
 
-const centreTime = 500;
+//Navigation variables
+int slowSpeed = 1300;
+int regSpeed = 2439;
+int centreTime = 200;
+int firstStation = 3;
 
 // PID control constants
 float Kp = 0;
@@ -74,7 +78,7 @@ void countRotation(void *pvParameters);
 void wireCommunication(void *pvParameters);
 
 
-bool goToState(int rotations, int lines, bool isForwardDir);
+bool goToState(int lines, bool isForwardDir);
 void followLine(int maxSpeed, bool isForwardDir);
 bool countLine(int lines, bool isForwardDir);
 void readSideSensors(bool isForwardDir);
@@ -84,6 +88,8 @@ void centreRobot(bool isForward);
 
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
+
+TaskHandle_t executeTaskHandle = NULL; // Handle for the executeTask
 
 void setup(){
   Serial.begin(115200);
@@ -107,6 +113,7 @@ void setup(){
   pinMode(signal, OUTPUT);  // DemonCore-Slave will control this pin
   pinMode(readyPin, INPUT);    // DemonCore-Slave will read this pin
 
+/*
 // Create FreeRTOS tasks
   xTaskCreatePinnedToCore(
     wireCommunication,       // Task function
@@ -116,44 +123,63 @@ void setup(){
     1,                // Task priority
     NULL,             // Task handle
     0                 // Core to run the task on (0 in this case)
-  ); 
+  );
+  */ 
 }
 
 void loop(){
+  state = 1;
+  executeTask(NULL);
+  delay(1000);
+  state = 2;
+  executeTask(NULL);
+  delay(1000);
+  state = 1;
+  executeTask(NULL);
   vTaskDelete(NULL);
 }
 
-
-
+/**
+ * @brief Handles wire communication and task execution based on received state.
+ *
+ * This function continuously monitors the `readyPin` to check if ESP-1 is ready to send data. If ESP-1 is ready, it reads the 
+ * incoming state using `readCommPinInput()` and compares it with the previous state. If the state is valid and different from 
+ * the previous state, it signals ESP-2 that the data has been received by setting the `signal` pin high. It then creates and 
+ * runs the `executeTask` function on core 1. The function waits until `executeTask` is no longer running, indicating task completion.
+ * Finally, it signals task completion to ESP-1 by setting the `signal` pin low and updates the `previousState` variable.
+ *
+ * @param pvParameters Pointer to task parameters (not used in this function).
+ */
 void wireCommunication(void *pvParameters) {
-  delay(50);
   while (true) {
     if (digitalRead(readyPin) == HIGH) { // Check if ESP-1 is ready
       state = readCommPinInput();
-      Serial.print("Received Task Number: ");
-      Serial.println(state);
-      if(state == previousState || state == 8){
-        Serial.println("Bad State");
-        vTaskDelay(50);
-      }
       
-      else{
+      if(state == previousState || state == 8){
+        vTaskDelay(50);
+      } 
+
+      else {
+        Serial.print("Received Task Number: ");
+        Serial.println(state);
         digitalWrite(signal, HIGH); // Signal that ESP-2 has received the data
 
+        // Create the executeTask
         xTaskCreatePinnedToCore(
-            executeTask,     // Task function
-            "executeTask",   // Name of the task (for debugging)
-            4096,            // Stack size (bytes)
-            NULL,            // Parameter to pass to the task
-            1,               // Task priority
-            NULL,            // Task handle
-            1                // Core to run the task on (0 in this case)
+            executeTask,         // Task function
+            "executeTask",       // Name of the task (for debugging)
+            4096,                // Stack size (bytes)
+            NULL,                // Parameter to pass to the task
+            1,                   // Task priority
+            &executeTaskHandle,  // Task handle
+            1                    // Core to run the task on (1 in this case)
         );
 
-        while (!ready) {
+        // Wait until the executeTask is no longer running
+        while (eTaskGetState(executeTaskHandle) != eDeleted) {
           vTaskDelay(100 / portTICK_PERIOD_MS);
         }
-        ready = false;
+
         Serial.println("Task Complete");
         previousState = state;
 
@@ -166,143 +192,162 @@ void wireCommunication(void *pvParameters) {
   }
 }
 
-
-
+/**
+ * @brief Executes tasks based on the current state.
+ *
+ * This function handles the execution of tasks corresponding to the current state. It prints the state and executes a specific 
+ * task depending on the state. The tasks include moving to different stations and adjusting speed settings. After completing the task, 
+ * the function updates the `ready` and `move` flags, and resets the speed settings if they were changed. Finally, the function 
+ * deletes itself upon completion.
+ *
+ * @param pvParameters Pointer to task parameters (not used in this function).
+ */
 void executeTask(void *pvParameters){  
   Serial.println("Executing tasks...");
-  bool complete = false;
+  delay(1000);
   switch(state){
-    case 0: {
-      complete = goToState(12,2,true);
+    case 1: {
+      bool complete = goToState(firstStation, true);
       if(complete){
         Serial.print("Complete round: ");
         Serial.println(state);
         ready = true;
-        delay(1000);
         move = true;
       }
       break;
     }
-    case 1:{
-      complete = goToState(12, 1, true);
-      if(complete){
-        Serial.print("Complete round: ");
-        Serial.println(state);
-        ready = true;
-        delay(1000);
-        move = true;
-      }
-      break;
-    }
+    
     case 2: {
-      complete = goToState(12, 1, true);
-      if(complete){
-        Serial.print("Complete round: ");
-        Serial.println(state);
-        ready = true;
-        delay(1000);
-        move = true;
+      for(int i = 0; i < 15; i++){
+        followLine(regSpeed, false);
+        delay(10);
       }
+      firstStation = 2;
       break;
     }
-    case 3: {
-      int rotations = 200;
-      complete = goToState(rotations, 2, false);
-      if(complete){
-        Serial.print("Complete round: ");
-        Serial.println(state);
-        ready = true;
-        delay(1000);
-        move = true;
-      }
-      break;
-    }
-    case 4: {
-      complete = goToState(12, 2, true);
-      if(complete){
-        Serial.print("Complete round: ");
-        Serial.println(state);
-        ready = true;
-        delay(1000);
-        move = true;
-      }
-      break;
-    }
+
     default:
       break; 
   }
-
+  Serial.println("Deleting Task executeTask");
   vTaskDelete(NULL);
 }
 
-bool goToState(int rotations, int lines, bool isForwardDir){ 
+/**
+ * @brief Controls the robot's movement to reach a target state.
+ *
+ * This function directs the robot to move along a line based on the provided parameters. It adjusts the robot's speed and
+ * direction depending on the proximity to the target line and sensor inputs. The function handles both forward and backward
+ * movement scenarios and manages the stopping process by gradually reducing speed. After stopping, it centers the robot 
+ * to ensure proper alignment.
+ *
+ * @param lines The target number of lines to go
+ * @param isForwardDir Direction of movement (`true` for forward, `false` for backward).
+ * @param isRightStop Flag indicating the side the robot stops on (`true` for right, `false` for left).
+ *
+ * @return `true` if the movement and stopping process was completed successfully.
+ */
+bool goToState(int lines, bool isForwardDir){
+  Serial.println("Moving...");
   currentLineCount = 0;
-  currentRotationCount = 0;
   almostThere = false;
 
   while(move){
-    //Serial.println(currentLineCount);
-    /*
-    xTaskCreatePinnedToCore(
-      countRotation,       // Task function
-      "countRotation",     // Name of the task (for debugging)
-      4096,             // Stack size (bytes)
-      (void *)&lines,   // Parameter to pass to the task
-      1,                // Task priority
-      NULL,             // Task handle
-      0                 // Core to run the task on (0 in this case)
-    );  
-    */
+  Serial.println("In Moving...");
     
     bool lineClose = countLine(lines - 1, isForwardDir);
     if(lineClose){
       almostThere = true;
     }
 
-    if(!almostThere && currentRotationCount < rotations){
-      int speedReduction = currentLineCount;
-      if(speedReduction == 0){
+    if(!almostThere){
+      float speedReduction = (float) currentLineCount;
+      if(speedReduction == 0 || speedReduction == 1){
         speedReduction = 1;
       }
-      int speed = (int) (2047 / speedReduction);
+      else{
+        speedReduction -= 0.4;
+      }
+      int speed = (int) (regSpeed / speedReduction);
       followLine(speed, isForwardDir);
     }
 
     else{
       readSideSensors(isForwardDir);
       if(isForwardDir){
-        if(frontLeftDetected){
-          currentLineCount++;
-          followLine(4095, !isForwardDir);
-          delay(100);
-          move = false;
-          Serial.println("Stopping");
+        if(frontLeftDetected ){
+          forwardDetected = true;
+          for(int i = 0; i <= 2; i++){
+              followLine(slowSpeed - 300, !isForwardDir);
+              delay(10);
+            }
+        }
+
+        if(forwardDetected){
+          if(backLeftDetected){
+            move = false;
+            Serial.println("Stopping");
+            forwardDetected = false;
+            int stopSpeed = 4095;
+            for(int i = 0; i <= 7; i++){
+              followLine(stopSpeed, !isForwardDir);
+              stopSpeed -= 140;
+              delay(11);
+            }
+          }
         }
       }
 
       else{
         if(backLeftDetected){
-          currentLineCount++;
-          followLine(4095, !isForwardDir);
-          delay(100);
-          move = false;
-          Serial.println("Stopping");
+          forwardDetected = true;
+          for(int i = 0; i <= 2; i++){
+              followLine(slowSpeed - 300, !isForwardDir);
+              delay(10);
+            }
+        }
+
+        if(forwardDetected){
+          if(frontLeftDetected){
+            move = false;
+            Serial.println("Stopping");
+            forwardDetected = false;
+            int stopSpeed = 4095;
+            for(int i = 0; i <= 8; i++){
+              followLine(stopSpeed, !isForwardDir);
+              stopSpeed -= 100;
+              delay(11);
+            }
+          }
         }
       }
-      followLine(700, isForwardDir);
+
+      followLine(slowSpeed, isForwardDir);
     }
   }
+  Serial.println("Centering Robot...");
   centreRobot(isForwardDir);
   return true;
 }
 
-
+/**
+ * @brief Controls the robot's movement along a line using PID control.
+ *
+ * This function adjusts the speed of the robot's motors to follow a line based on sensor readings. It uses a PID controller 
+ * to calculate the error between the left and right sensor readings, adjusting the motor speeds accordingly to correct the 
+ * robot's path. The function supports both forward and backward movement directions with different PID coefficients. It also 
+ * clamps the motor speeds to ensure they stay within valid PWM ranges and includes an optional debugging output for sensor 
+ * readings and control values.
+ *
+ * @param maxSpeed The maximum speed for the motors.
+ * @param isForwardDir Direction of movement (`true` for forward, `false` for backward).
+ */
 void followLine(int maxSpeed, bool isForwardDir) {
   int analogLeftValue, analogRightValue, leftValue, rightValue;
   if (isForwardDir) {
     analogLeftValue = analogRead(lineFrontLeft);
     analogRightValue = analogRead(lineFrontRight);
-    Kp = 0.5;
+    Kp = 0.6;
     Ki = 0.25;
     Kd = 0.15;
   } 
@@ -310,29 +355,25 @@ void followLine(int maxSpeed, bool isForwardDir) {
   else {
     analogLeftValue = analogRead(lineBackLeft);
     analogRightValue = analogRead(lineBackRight);
-    Kp = 0.5;
-    Ki = 0.25;
-    Kd = 0.15;
+    Kp = 0.73;
+    Ki = 0;
+    Kd = 0.35;
   }
 
+  int error = analogLeftValue - analogRightValue;
+  integral += error;
+  float derivative = error - previousError;
+  previousError = error;
+  float output = Kp * error + Ki * integral + Kd * derivative;
 
-int error = analogLeftValue - analogRightValue;
-integral += error;
-float derivative = error - previousError;
-previousError = error;
-
-float output = Kp * error + Ki * integral + Kd * derivative;
-
-// Optional: Limit the integral term to prevent windup
-float maxIntegral = 1000; // Adjust as necessary
-if (integral > maxIntegral) {
-    integral = maxIntegral;
-} else if (integral < -maxIntegral) {
+  // Limit the integral term to prevent windup
+  float maxIntegral = 1000;
+  if (integral > maxIntegral) {
+      integral = maxIntegral;
+  }
+  else if (integral < -maxIntegral) {
     integral = -maxIntegral;
-}
-
-// Use output as needed
-
+  }
 
   leftValue = maxSpeed - output;
   rightValue = maxSpeed + output;
@@ -342,6 +383,7 @@ if (integral > maxIntegral) {
   rightValue = constrain(rightValue, 0, maxSpeed);
 
   // Debugging output values
+  {
   /*
   Serial.print("Analog Left: ");
   Serial.print(analogLeftValue);
@@ -360,6 +402,7 @@ if (integral > maxIntegral) {
   Serial.print(" | Right Value: ");
   Serial.println(rightValue);
   */
+  }
 
   motorPower(isForwardDir, leftValue, rightValue);
 }
@@ -371,6 +414,19 @@ if (integral > maxIntegral) {
  * @param rightValue An integer value to control speed of right motor
 */
 void motorPower(bool isForwardDir, uint32_t leftValue, uint32_t rightValue){
+  if(isForwardDir){
+      ledcWrite(L1, leftValue);
+      ledcWrite(R1, rightValue);
+      ledcWrite(L2, 0);
+      ledcWrite(R2,0);
+    }
+    else{
+      ledcWrite(L1,0);
+      ledcWrite(R1,0);
+      ledcWrite(L2,leftValue);
+      ledcWrite(R2, rightValue);
+    }
+
   if(isForwardDir){
       ledcWrite(L1, leftValue);
       ledcWrite(R1, rightValue);
@@ -467,14 +523,6 @@ void readSideSensors(bool isForwardDir){
     backLeftDetected = false;
     //Serial.println("Back Left Detected: False");
   }
-}
-
-
-void countRotation(void *pvParameters){
-  //Cast void into int
-  int rotations = *(int *)pvParameters;
-  Serial.println(rotations);
-  vTaskDelete(NULL);
 }
 
 void centreRobot(bool isForwardDir){

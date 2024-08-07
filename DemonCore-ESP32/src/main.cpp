@@ -6,10 +6,11 @@
 #include "freertos/queue.h"
 #include <ESP32Servo.h>
 
-const char* ssid = "U235-Control";  // Replace with your AP's SSID
-const char* password = "SkibidiToilet";  // Replace with your AP's password
-const char* server_ip = "192.168.15.221";  // Default IP for ESP32 AP
-const uint16_t server_port = 80;  // Replace with your server's port
+const char* ssid = "U235-Control";
+const char* password = "SkibidiToilet";
+const char* server_ip = "192.168.15.221";
+const uint16_t server_port = 80;
+
 bool doBurger = true;
 bool proceed = false;
 
@@ -44,11 +45,13 @@ const int spatulaTime = 1100;
 AsyncClient client;
 QueueHandle_t commandQueue;
 
-//FreeRTOS task declaration
+//FreeRTOS task declaration:
+
 void TCP_Client(void *pvParameters);
 void ExecuteTasks(void *pvParameters);
 
 //Burger task delcaration
+
 void burgerTask1();
 void burgerTask2();
 void burgerTask3();
@@ -64,12 +67,14 @@ void burgerTask12();
 void burgerTask13();
 
 //Wire communication
+
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
 void waitForSignal(int pin);
 void performTask(int taskNo);
 
 //Spatula control
+
 void moveSpatula(bool close);
 void stopSpatula();
 void controlSpatula(int taskNo);
@@ -92,13 +97,10 @@ void setup() {
   Serial.begin(115200);
 
   //Initialise Spatula motors
-  {
   pinMode(spatulaMotor1, OUTPUT);
   pinMode(spatulaMotor2, OUTPUT);
-  }
 
   // Connect to ESP32 AP
-  {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -107,18 +109,14 @@ void setup() {
   // Create FreeRTOS queue
   commandQueue = xQueueCreate(20, sizeof(char[70]));
   Serial.println("Connected to ESP32 AP");
-  }
 
   //Initialise Servo motors
-  {
   armServo.attach(armServoPin, 500, 2500); // Min pulse width, Max pulse width
   turnServo.attach(turnServoPin, 500, 2500);
   armServo.write(currentArmServoPos);
   turnServo.write(currentTurnServoPos);
-  }
   
   // Create FreeRTOS tasks
-  {
   xTaskCreatePinnedToCore(
     TCP_Client,       // Task function
     "TCP Client",     // Name of the task (for debugging)
@@ -137,9 +135,7 @@ void setup() {
     1,                // Task priority
     NULL,
     1                 // Core to run the task on (1 in this case)
-  );
-  }
-  
+  );  
 }
 
 void loop() {
@@ -184,6 +180,8 @@ void TCP_Client(void *pvParameters) {
 
 /**
  * @brief This method executes tasks on core 1 of the ESP-32. 
+ * 
+ * @param pvParameters A void pointer to the parameters passed to the task. Unused in this method
  */
 void ExecuteTasks(void *pvParameters) {
   /*
@@ -264,30 +262,38 @@ void burgerTask2() {
   //smoothServoControl(centre, 2);
 }
 
+/**
+ * @brief Moves robot to cooking station
+ */
 void burgerTask3() { 
   Serial.println("Executing burger task 3");
-  //moves to cooktop
   performTask(2);
 }
 
+/**
+ * @brief Controls servo arm to drop the patty on the cooking station
+ */
 void burgerTask4() { 
   Serial.println("Executing burger task 4"); 
-  //drop patty on cooktop
   smoothServoControl(onCounter, 1);
   controlSpatula(2);
   smoothServoControl(flatSurface, 1);
   //smoothServoControl(centre, 2);
 }
 
+/**
+ * @brief Moves robot to bun station for top bun
+ */
 void burgerTask5() { 
   Serial.println("Executing burger task 5"); 
-  //move to top bun
   performTask(3);
 }
 
+/**
+ * @brief Controls servo arm to pick up top bun
+ */
 void burgerTask6() { 
   Serial.println("Executing burger task 6"); 
-  //pick up top bun
   controlSpatula(2);
   smoothServoControl(onCounter, 1);
   controlSpatula(1);
@@ -295,15 +301,19 @@ void burgerTask6() {
   //smoothServoControl(centre, 2);
 }
 
+/**
+ * @brief Moves robot to cooking station
+ */
 void burgerTask7() { 
   Serial.println("Executing burger task 7"); 
-  //go back to patty
   performTask(4);
 }
 
+/**
+ * @brief Picks up patty from cooking station
+ */
 void burgerTask8() { 
   Serial.println("Executing burger task 8"); 
-  //pick up patty
   controlSpatula(2);
   smoothServoControl(onCounter,1);
   controlSpatula(1);
@@ -311,42 +321,62 @@ void burgerTask8() {
   //smoothServoControl(centre, 2);
 }
 
+/**
+ * @brief Moves robot to bun station from cooking station to pick up top bun
+ */
 void burgerTask9() { 
   Serial.println("Executing burger task 9"); 
-  //go back to bot bun
   performTask(5);
 }
 
+/**
+ * @brief Controls servo arm to pick up bottom bun
+ */
 void burgerTask10() { 
   Serial.println("Executing burger task 10"); 
-  //pick up bot bun
   controlSpatula(2);
   smoothServoControl(onCounter, 1);
   controlSpatula(1);
   smoothServoControl(flatSurface, 1);
 }
 
+/**
+ * @brief Moves robot to serving area, moves arm high above plate
+ */
 void burgerTask11() { 
   Serial.println("Executing burger task 11"); 
-  //go to serving
   performTask(6); 
 }
 
+/**
+ * @brief Controls servo arm to drop burger on plate
+ */
 void burgerTask12() { 
   Serial.println("Executing burger task 12"); 
-  //drop on plate
   smoothServoControl(onCounter, 1);
   controlSpatula(2);
   smoothServoControl(130,1);
 }
 
+/**
+ * @brief Reset robot position to patty station
+ */
 void burgerTask13() { 
   Serial.println("Executing burger task 13"); 
-  //reset to patty
   performTask(7);
 }
 
-// Revised cubic easing function with slower easing-in
+/**
+ * @brief Cubic easing function with slower easing-in.
+ *
+ * This function provides a cubic easing calculation, modified to have a slower easing-in effect. 
+ * It smoothly interpolates the progress `t` over a duration, using a cubic equation for a more 
+ * gradual start and end. The function is typically used for animations or movements that require 
+ * a smooth, non-linear progression.
+ *
+ * @param t A float representing the normalized time (progress) in the range [0, 1].
+ * @return A float representing the eased progress.
+ */
 float easeInOutCubicSlow(float t) {
   t *= 2;
   if (t < 1) {
@@ -356,26 +386,31 @@ float easeInOutCubicSlow(float t) {
   return 0.5 * (t * t * t + 2);
 }
 
-/*
- *@brief controls a servo motor with cubic easing
+/**
+ * @brief Controls a servo motor with cubic easing.
  *
- * @param endPos the absolute end pos (0 <= pos <= 180) to move to
- * @param servoNo the servo to move
+ * This function moves a specified servo motor to a target position using a cubic easing function 
+ * for smooth acceleration and deceleration. It calculates the required position and delay for 
+ * each step, ensuring a smooth and gradual movement from the current position to the target 
+ * position. The easing function is used to interpolate the servo position, providing a smoother 
+ * transition.
+ *
+ * @param endPos The absolute target position (0 <= pos <= 180) to move the servo to.
+ * @param servoNo The identifier for the servo to move (1 for armServo, 2 for turnServo).
  */
 void smoothServoControl(int endPos, int servoNo) {
   int startPos;
-  switch (servoNo)
-  {
+  switch (servoNo) {
   case 1:
     startPos = currentArmServoPos;
     break;
   case 2:
     startPos = currentTurnServoPos;
     break;
-  
   default:
-    break;
+    return; // Exit if servoNo is invalid
   }
+  
   int range = abs(endPos - startPos);
   int increment = (startPos < endPos) ? 1 : -1;
 
@@ -383,8 +418,7 @@ void smoothServoControl(int endPos, int servoNo) {
     float progress = (float)i / range;
     float easedProgress = easeInOutCubicSlow(progress);
     int pos = startPos + increment * (easedProgress * range);
-    switch (servoNo)
-    {
+    switch (servoNo) {
     case 1:
       armServo.write(pos);
       break;
@@ -394,81 +428,76 @@ void smoothServoControl(int endPos, int servoNo) {
     default:
       break;
     }
-    
+
     // Calculate delay based on eased progress
     int currentDelay = minDelay + (int)(easedProgress * (maxDelay - minDelay));
     delay(currentDelay);
   }
-  
-  switch (servoNo)
-  {
+
+  switch (servoNo) {
   case 1:
     currentArmServoPos = endPos; // Update the current servo position
     break;
   case 2:
     currentTurnServoPos = endPos;
     break;
-  
   default:
     break;
   }
-  
 }
 
-/*
- *@brief perform a predetermined task while communicating over a wire connection
+/**
+ * @brief Perform a predetermined task while communicating over a wire connection.
  *
- * @param taskNo the task number to call
+ * This function executes a specific task based on the provided task number, adjusting servo positions 
+ * accordingly and communicating with another microcontroller over a wire connection. It handles the 
+ * necessary communication signaling to ensure synchronized task execution.
+ *
+ * @param taskNo The task number to execute. This determines the specific actions to perform, 
+ * such as setting the angles for the arm and turn servos.
  */
 void performTask(int taskNo) {
   Serial.println("Performing Tasks");
   int armAngle;
   int turnAngle;
-  switch (taskNo)
-  {
+  switch (taskNo) {
   case 1: {
-    armAngle  = flatSurface;
+    armAngle = flatSurface;
     turnAngle = leftCounter;
     break;
-    }
-  
+  }
   case 2: {
     armAngle = flatSurface;
     turnAngle = rightCounter;
     break;
   }
-  
   case 3: {
     armAngle = flatSurface;
     turnAngle = leftCounter;
     break;
   }
-
   case 4: {
     armAngle = flatSurface;
     turnAngle = rightCounter;
     break;
   }
-
   case 5: {
     armAngle = flatSurface + 5;
     turnAngle = leftCounter;
     break;
   }
-
   case 6: {
     armAngle = flatSurface + 30;
     turnAngle = rightCounter;
     break;
   }
-
-  case 7:{
+  case 7: {
     armAngle = flatSurface;
     turnAngle = centre;
-  }
-
-  default:
     break;
+  }
+  default:
+    return; // Exit if taskNo is invalid
   }
 
   setCommPinOutput(taskNo);
@@ -477,24 +506,30 @@ void performTask(int taskNo) {
 
   digitalWrite(ready, HIGH);  // Signal ESP-2 that data is ready
   delay(100);
-  if(armAngle != currentArmServoPos){
+  if (armAngle != currentArmServoPos) {
     smoothServoControl(armAngle, 1);
   }
-  if (turnAngle != currentTurnServoPos){
-    smoothServoControl(turnAngle, 2); 
-    delay(100); //some delay for turning
+
+  if (turnAngle != currentTurnServoPos) {
+    smoothServoControl(turnAngle, 2);
+    delay(100); // some delay for turning
   }
+
   waitForSignal(signal);  // Wait for ESP-2 to complete the task
   digitalWrite(ready, LOW);  // Reset the ready signal
-  // After receiving the signal from ESP-2, reset the output
-  setCommPinOutput(0);
+
+  setCommPinOutput(0); // Reset the output after receiving the signal from ESP-2
   Serial.println("Received completion signal from ESP-2");
 }
 
-/*
- * @brief Waits for a pin to go LOW from HIGH
- * 
- * @param pin the pin number to read
+/**
+ * @brief Waits for a pin to go LOW from HIGH.
+ *
+ * This function continuously checks the state of a specified pin and waits until it goes LOW. 
+ * It is used to synchronize actions with external signals, ensuring that the program proceeds 
+ * only when the expected signal is received.
+ *
+ * @param pin The pin number to read. The function will wait until this pin's state changes from HIGH to LOW.
  */
 void waitForSignal(int pin) {
   while (digitalRead(pin) == HIGH) {
@@ -503,7 +538,6 @@ void waitForSignal(int pin) {
   }
   Serial.println("Signal is LOW, proceeding...");
 }
-
 
 /*
  *@brief Method to open and close the spatula
@@ -553,7 +587,6 @@ void controlSpatula(int taskNo){
     break;
   }
 }
-
 
 /* @brief Converts integer into binary
  *

@@ -4,6 +4,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <ESPAsyncWebServer.h>
+#include <ESP32Servo.h>
 
 const char* ssid = "U235-Control";  // Replace with your desired SSID
 const char* password = "SkibidiToilet";  // Replace with your desired password
@@ -14,24 +15,42 @@ bool proceed = false;
 bool interProceed = false;
 bool interReady = false;
 
-
-
+//Wire communication pins
 #define commBit0 21
 #define commBit1 22
 #define commBit2 19
-#define commBit3 18
+#define commBit3 8
+#define signal 7
+#define readyPin 5
 
+//Burger arm pins
+#define armServoPin 32
+#define turnServoPin 26  
+
+//Servo number assignment
+#define armServoNo 1
+#define turnServoNo 2
+
+// Define initial speed and delay parameters for smooth servo control
+const int minDelay = 30;      // Minimum delay in milliseconds
+const int maxDelay = 50;     // Maximum delay in milliseconds
+int currentArmServoPos = 40; // Start from the middle position
+int currentTurnServoPos = 100;
+
+//Network Object Creation
 AsyncServer server(80);  // Create a server object on port 80
 AsyncClient* client = NULL;
 QueueHandle_t responseQueue;
 
 //WiFi connection methods
+
 void TCP_Server(void* pvParameters);
 void onClientConnect(void* arg, AsyncClient* newClient);
 
 void ExecuteTasks(void *pvParameters);
 
 //Task methods
+
 void burgerTask1();
 void burgerTask2();
 void burgerTask3();
@@ -39,15 +58,32 @@ void burgerTask4();
 void burgerTask5();
 void burgerTask6();
 
-//Wired Communication
+//Wire communication
+
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
-bool wireCommunication(int taskNo);
+void waitForSignal(int pin);
+void performTask(int taskNo);
+
+//Smooth servo control
+Servo armServo;
+Servo turnServo;
+float easeInOutCubicSlow(float t);
+void smoothServoControl(int endPos, int servoNo);
+
+//Common angles declaration
+const int leftCounter = 180;
+const int centre = 100;
+const int rightCounter = 10;
+const int onCounter = 30;
+const int flatSurface = 43;
+const int armUp = 180;
 
 void setup() {
   Serial.begin(9600);
 
   // Set up the ESP32 as an access point
+  {
   IPAddress IP(192, 168, 15, 221);  // Desired IP address
   IPAddress subnet(255, 255, 255, 0);  // Subnet mask
   WiFi.softAPConfig(IP, IP, subnet);
@@ -55,7 +91,6 @@ void setup() {
   IP = WiFi.softAPIP();
   Serial.print("AP IP address: ");
   Serial.println(IP);
-
   WiFi.setSleep(false);
 
   // Create a queue to handle responses
@@ -64,8 +99,10 @@ void setup() {
   // Start the TCP server
   server.onClient(&onClientConnect, &server);
   server.begin();
+  }
 
   // Create FreeRTOS tasks
+  {
   xTaskCreatePinnedToCore(
     TCP_Server,       // Task function
     "TCP Server",     // Name of the task (for debugging)
@@ -85,10 +122,11 @@ void setup() {
     NULL,
     1                 // Core to run the task on (1 in this case)
   );
+  }
+
 }
 
 void loop() {
-  // Main loop can run other tasks if needed
   vTaskDelete(NULL);
 }
 
@@ -420,7 +458,7 @@ void performTask(int taskNo) {
   Serial.print("Task Number Sent: ");
   Serial.println(taskNo);
 
-  digitalWrite(ready, HIGH);  // Signal ESP-2 that data is ready
+  digitalWrite(readyPin, HIGH);  // Signal ESP-2 that data is ready
   delay(100);
   if(armAngle != currentArmServoPos){
     smoothServoControl(armAngle, 1);
@@ -430,7 +468,7 @@ void performTask(int taskNo) {
     delay(100); //some delay for turning
   }
   waitForSignal(signal);  // Wait for ESP-2 to complete the task
-  digitalWrite(ready, LOW);  // Reset the ready signal
+  digitalWrite(readyPin, LOW);  // Reset the ready signal
   // After receiving the signal from ESP-2, reset the output
   setCommPinOutput(0);
   Serial.println("Received completion signal from ESP-2");
