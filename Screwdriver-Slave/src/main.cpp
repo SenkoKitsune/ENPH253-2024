@@ -60,9 +60,9 @@ const int OPTICAL_SENSOR_THRESHOLD = 500;
 
 //Navigation variables
 int slowSpeed = 1300;
-int regSpeed = 2439;
+int regSpeed = 1700;
 int centreTime = 200;
-int firstStation = 3;
+int firstStation = 4;
 
 // PID control constants
 float Kp = 0;
@@ -128,7 +128,9 @@ void setup(){
 }
 
 void loop(){
-  followLine(1750, false);
+  state = 2;
+  executeTask(NULL);
+  vTaskDelete(NULL);
 }
 
 /**
@@ -205,16 +207,18 @@ void executeTask(void *pvParameters){
         Serial.println(state);
         ready = true;
         move = true;
+        firstStation = 2;
       }
       break;
     }
     
     case 2: {
-      for(int i = 0; i < 15; i++){
+      for(int i = 0; i < 150; i++){
+        Serial.println(i);
         followLine(regSpeed, false);
         delay(10);
       }
-      firstStation = 2;
+      followLine(0, false);
       break;
     }
 
@@ -318,7 +322,7 @@ bool goToState(int lines, bool isForwardDir){
     }
   }
   Serial.println("Centering Robot...");
-  // centreRobot(isForwardDir);
+  centreRobot(isForwardDir);
   return true;
 }
 
@@ -339,17 +343,17 @@ void followLine(int maxSpeed, bool isForwardDir) {
   if (isForwardDir) {
     analogLeftValue = analogRead(lineFrontLeft);
     analogRightValue = analogRead(lineFrontRight);
-    Kp = 0.6;
-    Ki = 0.25;
-    Kd = 0.15;
+    Kp = 0.8;
+    Ki = 0.5;
+    Kd = 0.3;
   } 
   
   else {
     analogLeftValue = analogRead(lineBackLeft);
     analogRightValue = analogRead(lineBackRight);
-    Kp = 1.2;
-    Ki = 0;
-    Kd = 0.3;
+    Kp = 1.1;
+    Ki = 0.15;
+    Kd = 0.5;
   }
 
   int error = analogLeftValue - analogRightValue;
@@ -375,26 +379,29 @@ void followLine(int maxSpeed, bool isForwardDir) {
   rightValue = constrain(rightValue, 0, maxSpeed);
 
   // Debugging output values
-  {
+  /*
   Serial.print("Analog Left: ");
-  Serial.print(analogLeftValue);
-  Serial.print(" | Analog Right: ");
-  Serial.print(analogRightValue);
-  Serial.print(" | Error: ");
-  Serial.print(error);
-  Serial.print(" | Integral: ");
-  Serial.print(integral);
-  Serial.print(" | Derivative: ");
-  Serial.print(derivative);
-  Serial.print(" | Output: ");
-  Serial.print(output);
-  Serial.print(" | Left Value: ");
-  Serial.print(leftValue);
-  Serial.print(" | Right Value: ");
+   Serial.print(analogLeftValue);
+   Serial.print(" | Analog Right: ");
+   Serial.print(analogRightValue);
+   Serial.print(" | Error: ");
+   Serial.print(error);
+   Serial.print(" | Integral: ");
+   Serial.print(integral);
+   Serial.print(" | Derivative: ");
+   Serial.print(derivative);
+   Serial.print(" | Output: ");
+   Serial.print(output);
+   Serial.print(" | Left Value: ");
+   Serial.print(leftValue);
+   Serial.print(" | Right Value: ");
+   Serial.println(rightValue);
+   Serial.print("Left Speed: ");
+   Serial.print(leftValue);
+   Serial.print(" | Right Speed: ");
   Serial.println(rightValue);
-  
-  }
-
+  delay(100);
+  */
   motorPower(isForwardDir, leftValue, rightValue);
 }
 
@@ -443,7 +450,8 @@ bool countLine(int lines, bool isForwardDir){
   Serial.print("Back Left Detected: ");
   Serial.println(backLeftDetected);
   */
-  //Serial.println(currentLineCount);
+  Serial.println(currentLineCount);
+
   if(currentLineCount == lines){
     return true;
   }
@@ -468,12 +476,14 @@ bool countLine(int lines, bool isForwardDir){
   else{
     if(backLeftDetected){
       if(!forwardDetected){
+        Serial.print("Changed ForwardDetected");
         forwardDetected = true;
       }
     }
 
     if(forwardDetected){
       if(frontLeftDetected){
+        Serial.print("frontLeftDetected");
         currentLineCount++;
         forwardDetected = false;
       }
@@ -498,21 +508,21 @@ void readSideSensors(bool isForwardDir){
 
   if(frontLeftValue > OPTICAL_SENSOR_THRESHOLD){
     frontLeftDetected = true;
-    //Serial.println("Front Left Detected: True");
+    // Serial.println("Front Left Detected: True");
   }
   else{
     frontLeftDetected = false;
-    //Serial.println("Front Left Detected: False");
+    // Serial.println("Front Left Detected: False");
   }
   
 
   if(backLeftValue > OPTICAL_SENSOR_THRESHOLD){
     backLeftDetected = true;
-    //Serial.println("Back Left Detected: True");
+    // Serial.println("Back Left Detected: True");
   }
   else{
     backLeftDetected = false;
-    //Serial.println("Back Left Detected: False");
+    // Serial.println("Back Left Detected: False");
   }
 }
 
