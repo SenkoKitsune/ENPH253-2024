@@ -13,6 +13,7 @@ const uint16_t server_port = 80;  // Replace with your server's port
 bool doBurger = true;
 bool proceed = false;
 
+//Wire communication pins
 #define commBit0 21
 #define commBit1 22
 #define commBit2 19
@@ -20,11 +21,13 @@ bool proceed = false;
 #define signal 7
 #define ready 5
 
+//Burger arm pins
 #define armServoPin 27
 #define turnServoPin 33
 #define spatulaMotor1 2 
 #define spatulaMotor2 4 
 
+//Servo number assignment
 #define armServoNo 1
 #define turnServoNo 2
 
@@ -34,17 +37,18 @@ const int maxDelay = 50;     // Maximum delay in milliseconds
 int currentArmServoPos = 40; // Start from the middle position
 int currentTurnServoPos = 100;
 
+// Timing for spatula open/close
 const int spatulaTime = 1100;
 
+//Object creation for WiFi
 AsyncClient client;
 QueueHandle_t commandQueue;
-Servo armServo;
-Servo turnServo;
 
-// Forward declaration of tasks
+//FreeRTOS task declaration
 void TCP_Client(void *pvParameters);
 void ExecuteTasks(void *pvParameters);
 
+//Burger task delcaration
 void burgerTask1();
 void burgerTask2();
 void burgerTask3();
@@ -59,58 +63,62 @@ void burgerTask11();
 void burgerTask12();
 void burgerTask13();
 
-void friesTask0();
-void friesTask1();
-void friesTask2();
-void friesTask3();
-void friesTask4();
-void friesTask5();
-void friesTask6(); 
-void friesTask7();
-
+//Wire communication
 void setCommPinOutput(int taskNumber);
 int readCommPinInput();
 void waitForSignal(int pin);
 void performTask(int taskNo);
 
+//Spatula control
 void moveSpatula(bool close);
 void stopSpatula();
 void controlSpatula(int taskNo);
 
+//Smooth servo control
+Servo armServo;
+Servo turnServo;
 float easeInOutCubicSlow(float t);
 void smoothServoControl(int endPos, int servoNo);
 
+//Common angles declaration
 const int leftCounter = 180;
 const int centre = 100;
 const int rightCounter = 10;
 const int onCounter = 30;
-
 const int flatSurface = 43;
 const int armUp = 180;
 
 void setup() {
   Serial.begin(115200);
-  // Attach the servo to the specified pin with pulse widths for MG996R
-  armServo.attach(armServoPin, 500, 2500); // Min pulse width, Max pulse width
-  turnServo.attach(turnServoPin, 500, 2500);
 
+  //Initialise Spatula motors
+  {
   pinMode(spatulaMotor1, OUTPUT);
   pinMode(spatulaMotor2, OUTPUT);
+  }
 
   // Connect to ESP32 AP
+  {
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.println("Connecting to ESP32 AP...");
   }
-  Serial.println("Connected to ESP32 AP");
-  armServo.write(currentArmServoPos);
-  turnServo.write(currentTurnServoPos);
-
   // Create FreeRTOS queue
   commandQueue = xQueueCreate(20, sizeof(char[70]));
+  Serial.println("Connected to ESP32 AP");
+  }
 
+  //Initialise Servo motors
+  {
+  armServo.attach(armServoPin, 500, 2500); // Min pulse width, Max pulse width
+  turnServo.attach(turnServoPin, 500, 2500);
+  armServo.write(currentArmServoPos);
+  turnServo.write(currentTurnServoPos);
+  }
+  
   // Create FreeRTOS tasks
+  {
   xTaskCreatePinnedToCore(
     TCP_Client,       // Task function
     "TCP Client",     // Name of the task (for debugging)
@@ -130,7 +138,7 @@ void setup() {
     NULL,
     1                 // Core to run the task on (1 in this case)
   );
-
+  }
   
 }
 
@@ -138,7 +146,12 @@ void loop() {
   vTaskDelete(NULL);
 }
 
-// Task for handling TCP client communication on core 0
+/**
+ * @brief Manages a TCP client connection on the ESP32
+ * 
+ * @param pvParameters A void pointer to the parameters passed to the task. Unused in this method
+ * 
+ **/
 void TCP_Client(void *pvParameters) {
   client.onConnect([](void *s, AsyncClient* c) {
     Serial.println("Connected to server");
@@ -169,67 +182,10 @@ void TCP_Client(void *pvParameters) {
   }
 }
 
-/*
- * This method executes tasks on core 1 of the ESP-32. It has two components, a one-time-use doFries loop and a multi-use doBurger loop.
- * It is also responsible for the initial sending of information when the robot has finished up to the hand-off step each loop.
+/**
+ * @brief This method executes tasks on core 1 of the ESP-32. 
  */
 void ExecuteTasks(void *pvParameters) {
-
-/*
- * The fries loop. It will do its own thing until the fries hand-off step, which will then require the two robots to communicate
- * with each other. Afterwards, the doBurgers boolean will be set to true and the doFries loop will be ignored.
- */
-/*
-  if(!doBurger){
-    for(int i = 0; i < 6; i++){
-      switch(i) {
-        case 0: friesTask0(); break;
-        case 1: friesTask1(); break;
-        case 2: friesTask2(); break;
-        case 3: friesTask3(); break;
-        case 4: friesTask4(); break;
-        case 5: 
-        {
-          friesTask5();
-          // After doing task 5, we wait for Screwdriver robot to show up so we can hand off the fries
-          const char* instruction = "Reached Fries Task 5";
-          client.write(instruction, strlen(instruction));
-          Serial.printf("Sent instruction: %s\n", instruction);
-
-          // Wait for the command to execute task 6
-          char command[50];
-          while (true) {
-            if (xQueueReceive(commandQueue, &command, portMAX_DELAY)) {
-              if (strcmp(command, "Execute Task 6") == 0) {
-                delay(50);
-                break;
-              }
-            }
-            vTaskDelay(100 / portTICK_PERIOD_MS); // Adjust the delay as needed
-          }
-
-          // Execute task 6
-          friesTask6();
-          instruction = "Finished Task 6";
-          client.write(instruction, strlen(instruction));
-          Serial.printf("Sent instruction: %s\n", instruction);
-
-          //Wait for the server to confirm action
-          while (!proceed) {
-            delay(100);
-          }
-          delay(100);
-          friesTask7();
-          break;
-        }
-
-      }
-    }
-    doBurger = true;
-    proceed = false;
-  }
-  */
-
   /*
    * The doBurger loop. After finishing the fries step, the robot will repeat the burger loop until we run out of time
    * It will do its own loop until it needs to do the burger plating step. The burger will then send communication wirelessly to 
@@ -289,30 +245,29 @@ void ExecuteTasks(void *pvParameters) {
   }
 }
 
-
+/**
+ * @brief Goes towards patty station, move arms to left counter
+ */
 void burgerTask1() { 
-  //Goes to patty
   Serial.println("Executing burger task 1"); 
   performTask(1);
-  
 }
 
+/**
+ * @brief Controls servo arm to pick up patty
+ */
 void burgerTask2() { 
   Serial.println("Executing burger task 2"); 
-  //picks up patty
   smoothServoControl(onCounter, 1);
   controlSpatula(1);
   smoothServoControl(flatSurface, 1);
   //smoothServoControl(centre, 2);
-  
- 
 }
 
 void burgerTask3() { 
   Serial.println("Executing burger task 3");
   //moves to cooktop
   performTask(2);
-  
 }
 
 void burgerTask4() { 
@@ -322,14 +277,12 @@ void burgerTask4() {
   controlSpatula(2);
   smoothServoControl(flatSurface, 1);
   //smoothServoControl(centre, 2);
-
 }
 
 void burgerTask5() { 
   Serial.println("Executing burger task 5"); 
   //move to top bun
   performTask(3);
- 
 }
 
 void burgerTask6() { 
@@ -346,7 +299,6 @@ void burgerTask7() {
   Serial.println("Executing burger task 7"); 
   //go back to patty
   performTask(4);
-  
 }
 
 void burgerTask8() { 
@@ -363,7 +315,6 @@ void burgerTask9() {
   Serial.println("Executing burger task 9"); 
   //go back to bot bun
   performTask(5);
- 
 }
 
 void burgerTask10() { 
@@ -373,14 +324,12 @@ void burgerTask10() {
   smoothServoControl(onCounter, 1);
   controlSpatula(1);
   smoothServoControl(flatSurface, 1);
-  
 }
 
 void burgerTask11() { 
   Serial.println("Executing burger task 11"); 
   //go to serving
-  performTask(6);
-  
+  performTask(6); 
 }
 
 void burgerTask12() { 
@@ -396,51 +345,6 @@ void burgerTask13() {
   //reset to patty
   performTask(7);
 }
-
-//fries tasks from task 0 to task 6
-void friesTask0() { 
-  Serial.println("Executing fries task 0"); 
-  delay(1000);
-}
-
-void friesTask1() { 
-  Serial.println("Executing fries task 1"); 
-  delay(1000);
-}
-
-void friesTask2() { 
-  Serial.println("Executing fries task 2"); 
-  delay(1000);
-}
-
-void friesTask3() { 
-  Serial.println("Executing fries task 3"); 
-  delay(1000);
-}
-
-void friesTask4() { 
-  Serial.println("Executing fries task 4"); 
-  delay(1000);
-}
-
-void friesTask5() { 
-  Serial.println("Executing fries task 5"); 
-  delay(2000);
-}
-
-void friesTask6() { 
-  Serial.println("Executing fries task 6"); 
-  delay(1000);
-}
-
-void friesTask7() {
-   Serial.println("Executing fries task 7"); 
-   setCommPinOutput(7);
-   delay(50);
-
-   delay(1000);
-   }
-
 
 // Revised cubic easing function with slower easing-in
 float easeInOutCubicSlow(float t) {
@@ -510,9 +414,6 @@ void smoothServoControl(int endPos, int servoNo) {
   }
   
 }
-
-
-/* Function to perform a single task */
 
 /*
  *@brief perform a predetermined task while communicating over a wire connection
@@ -590,7 +491,11 @@ void performTask(int taskNo) {
   Serial.println("Received completion signal from ESP-2");
 }
 
-/* Helper function to wait for signal pin to go LOW */
+/*
+ * @brief Waits for a pin to go LOW from HIGH
+ * 
+ * @param pin the pin number to read
+ */
 void waitForSignal(int pin) {
   while (digitalRead(pin) == HIGH) {
     Serial.println("Waiting for signal to go LOW...");
@@ -599,21 +504,36 @@ void waitForSignal(int pin) {
   Serial.println("Signal is LOW, proceeding...");
 }
 
+
+/*
+ *@brief Method to open and close the spatula
+ * 
+ * @param close true for closing action, false for opening action
+ */
 void moveSpatula(bool close) {
   if (close) {
     digitalWrite(spatulaMotor1, HIGH);
     digitalWrite(spatulaMotor2, LOW);
-  } else {
+  } 
+  else {
     digitalWrite(spatulaMotor1, LOW);
     digitalWrite(spatulaMotor2, HIGH);
   }
 }
 
+/*
+ * @brief Method to stop operating the spatula motor
+ */
 void stopSpatula() {
   digitalWrite(spatulaMotor1, LOW);
   digitalWrite(spatulaMotor2, LOW);
 }
 
+/*
+ *@brief Controls the opening and closing of the spatula, timed
+ * 
+ * @param taskNo 1 for opening, 2 for closing
+ */
 void controlSpatula(int taskNo){
   switch (taskNo)
   {
@@ -622,12 +542,12 @@ void controlSpatula(int taskNo){
     delay(spatulaTime);
     stopSpatula();
     break;
+
   case 2:
     moveSpatula(false);
     delay(spatulaTime);
     stopSpatula();
-    break;
-  
+    break; 
 
   default:
     break;
